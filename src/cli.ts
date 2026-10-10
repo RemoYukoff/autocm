@@ -13,6 +13,8 @@ import { planSlots, runDaemon, tick } from "./scheduler/index.ts";
 import { listJobs, lockedKeys, settleJobs } from "./dashboard/actions.ts";
 import { DEFAULT_PORT, startDashboard } from "./dashboard/server.ts";
 import { currentTick } from "./scheduler/tick.ts";
+import { inFlight } from "./core/inflight.ts";
+import { collectMetrics, connectX } from "./x/index.ts";
 import { watchSources } from "./core/watch.ts";
 
 const program = new Command().name("autocm").description("Autonomous X community manager");
@@ -27,7 +29,7 @@ products.command("list").action(() => {
   for (const slug of listProductSlugs()) {
     const p = loadProduct(slug);
     const caps = capabilitiesFor(p);
-    console.log(`${slug}\tenabled=${p.config.enabled}\tx_creds=${p.xCreds ? "yes" : "no"}\tcaps=${JSON.stringify(caps)}`);
+    console.log(`${slug}\tenabled=${p.config.enabled}\tx=${p.xAccount ? `@${p.xAccount.handle}` : "not connected"}\tcaps=${JSON.stringify(caps)}`);
   }
 });
 products.command("validate [slug]").description("Validate product.yaml and referenced files").action((slug?: string) => {
@@ -75,7 +77,7 @@ program.command("tick").description("Run one scheduler pass").action(tick);
 /** On a source change, wait until no tick or dashboard job is running, then stop the daemon via SIGTERM. */
 function restartWhenIdle(): () => void {
   let poll: NodeJS.Timeout | undefined;
-  const idle = () => !currentTick() && !lockedKeys().length && !listJobs().some((j) => j.status === "running");
+  const idle = () => !currentTick() && !inFlight() && !lockedKeys().length && !listJobs().some((j) => j.status === "running");
   const stopWatching = watchSources((file) => {
     if (poll) return;
     log.info({ file }, "source changed: restarting once idle");
@@ -145,15 +147,25 @@ program.command("history <product>").option("-n <n>", "how many", "20").action((
 
 program
   .command("render-fixture <file>")
-  .option("-p, --product <slug>", "product", "acme")
+  .requiredOption("-p, --product <slug>", "product")
   .description("Render media for a {brief, draft} fixture without the LLM")
   .action(async (file: string, o: { product: string }) => {
     console.log(JSON.stringify(await renderFixture(file, o.product), null, 2));
   });
 
-program.command("x <action> [product]").description("X utilities: whoami").action(async (action: string, slug = "acme") => {
-  if (action !== "whoami") throw new Error(`unknown x action "${action}"`);
+const x = program.command("x").description("X account through the logged-in browser profile");
+x.command("connect <product>")
+  .description("Open a browser window to log in to X for this product (stop the service first: the profile is locked while it runs)")
+  .action(async (slug: string) => {
+    loadProduct(slug);
+    const a = await connectX(slug);
+    console.log(`connected @${a.handle}`);
+  });
+x.command("whoami <product>").description("Profile of the product's logged-in X session").action(async (slug: string) => {
   console.log(await xWhoami(loadProduct(slug)));
+});
+x.command("metrics").option("-d, --days <n>", "published within the last n days", "7").description("Refresh post metrics from X").action(async (o: { days: string }) => {
+  console.log(`updated ${await collectMetrics(Number(o.days))} posts`);
 });
 
 program.command("status").description("Mode, pause state, products").action(() => {

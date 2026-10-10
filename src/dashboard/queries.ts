@@ -211,7 +211,7 @@ export function productViews(now = new Date()): ProductView[] {
       timezone: c.timezone,
       daily_cap: c.cadence.daily_cap,
       today_count: countPublishedBetween(today.start, today.end, c.slug),
-      live: p.xCreds !== null,
+      live: p.xAccount !== null,
       enabled: c.enabled,
       color: c.brand.colors.primary,
     };

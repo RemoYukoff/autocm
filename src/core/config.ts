@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import dotenv from "dotenv";
 import YAML from "yaml";
 import { env } from "./env.ts";
-import { PRODUCTS_DIR } from "./paths.ts";
-import { ProductConfig, type Capabilities, type Product, type XCreds } from "./types.ts";
+import { getXAccount } from "./db/index.ts";
+import { PRODUCTS_DIR, sessionDir } from "./paths.ts";
+import { ProductConfig, type Capabilities, type Product, type XAccount } from "./types.ts";
 
 export function listProductSlugs(): string[] {
   if (!fs.existsSync(PRODUCTS_DIR)) return [];
@@ -15,13 +15,10 @@ export function listProductSlugs(): string[] {
     .sort();
 }
 
-function readXCreds(dir: string): XCreds | null {
-  const file = path.join(dir, ".env");
-  if (!fs.existsSync(file)) return null;
-  const vars = dotenv.parse(fs.readFileSync(file));
-  const { X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET } = vars;
-  if (!X_API_KEY || !X_API_SECRET || !X_ACCESS_TOKEN || !X_ACCESS_SECRET) return null;
-  return { appKey: X_API_KEY, appSecret: X_API_SECRET, accessToken: X_ACCESS_TOKEN, accessSecret: X_ACCESS_SECRET };
+/** The product's connected X account: a DB row plus its browser profile on disk. */
+function readXAccount(slug: string): XAccount | null {
+  const account = getXAccount(slug);
+  return account && fs.existsSync(sessionDir(slug)) ? account : null;
 }
 
 function readKnowledge(dir: string): string {
@@ -42,7 +39,7 @@ export function loadProduct(slug: string): Product {
   const parsed = ProductConfig.safeParse(YAML.parse(fs.readFileSync(file, "utf8")));
   if (!parsed.success) throw new Error(`Invalid ${file}:\n${parsed.error.message}`);
   if (parsed.data.slug !== slug) throw new Error(`${file}: slug "${parsed.data.slug}" must match folder "${slug}"`);
-  return { config: parsed.data, dir, knowledge: readKnowledge(dir), xCreds: readXCreds(dir) };
+  return { config: parsed.data, dir, knowledge: readKnowledge(dir), xAccount: readXAccount(slug) };
 }
 
 export function loadProducts(): Product[] {
@@ -76,6 +73,6 @@ export function capabilitiesFor(product: Product): Capabilities {
     clip: product.config.assets.clips.length > 0,
     ai_image: Boolean(env.openaiKey || env.geminiKey || env.falKey),
     ai_video: Boolean(env.falKey) && env.aiVideo,
-    live: product.xCreds !== null,
+    live: product.xAccount !== null,
   };
 }

@@ -56,9 +56,6 @@ importers:
       remotion:
         specifier: 4.0.534
         version: 4.0.534(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      twitter-api-v2:
-        specifier: ^1.29.1
-        version: 1.29.1
       twitter-text:
         specifier: ^3.1.0
         version: 3.1.0
@@ -2384,9 +2381,6 @@ packages:
   twemoji-parser@11.0.2:
     resolution: {integrity: sha512-5kO2XCcpAql6zjdLwRwJjYvAZyDy3+Uj7v1ipBzLthQmDL7Ce19bEqHr3ImSNeoSW2OA8u02XmARbXHaNO8GhA==}
 
-  twitter-api-v2@1.29.1:
-    resolution: {integrity: sha512-l5U8aP6woe+gv0RViz/YA0YEG/NRtqkO1iXWqxNfrn3MSc2V85u6w44oNDBWhy8zVV9r36SJv/uXNmnfni8Uxw==}
-
   twitter-text@3.1.0:
     resolution: {integrity: sha512-nulfUi3FN6z0LUjYipJid+eiwXvOLb8Ass7Jy/6zsXmZK3URte043m8fL3FyDzrK+WLpyqhHuR/TcARTN/iuGQ==}
 
@@ -4579,8 +4573,6 @@ snapshots:
       fsevents: 2.3.3
 
   twemoji-parser@11.0.2: {}
-
-  twitter-api-v2@1.29.1: {}
 
   twitter-text@3.1.0:
     dependencies:

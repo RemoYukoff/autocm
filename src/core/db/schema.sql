@@ -61,3 +61,28 @@ CREATE TABLE IF NOT EXISTS events (
   type    TEXT NOT NULL,
   payload TEXT
 );
+
+-- X account connected through a logged-in browser profile (data/sessions/<product>/). One per product.
+CREATE TABLE IF NOT EXISTS x_accounts (
+  product      TEXT PRIMARY KEY,
+  handle       TEXT NOT NULL,
+  name         TEXT,
+  avatar_path  TEXT,
+  connected_at TEXT NOT NULL,
+  last_ok_at   TEXT,
+  error        TEXT
+);
+
+-- Engagement snapshots of published posts, read from X in the browser. Latest row per post wins.
+CREATE TABLE IF NOT EXISTS post_metrics (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id   INTEGER NOT NULL,
+  ts        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  likes     INTEGER,
+  reposts   INTEGER,
+  replies   INTEGER,
+  quotes    INTEGER,
+  bookmarks INTEGER,
+  views     INTEGER
+);
+CREATE INDEX IF NOT EXISTS post_metrics_post ON post_metrics(post_id, ts);

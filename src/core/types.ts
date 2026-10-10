@@ -92,20 +92,42 @@ export const ProductConfig = z.object({
 });
 export type ProductConfig = z.infer<typeof ProductConfig>;
 
-/** Loaded product: config plus resolved paths, knowledge and per-product secrets. */
+/** Loaded product: config plus resolved paths, knowledge and its connected X account. */
 export interface Product {
   config: ProductConfig;
   dir: string;
   knowledge: string;
-  /** X creds present in products/<slug>/.env */
-  xCreds: XCreds | null;
+  /** X account logged in through the browser (row in x_accounts and a profile in data/sessions/<slug>/), or null. */
+  xAccount: XAccount | null;
 }
 
-export interface XCreds {
-  appKey: string;
-  appSecret: string;
-  accessToken: string;
-  accessSecret: string;
+export interface XAccount {
+  product: string;
+  handle: string;
+  name: string | null;
+  /** Absolute path of the downloaded avatar, if any. */
+  avatar_path: string | null;
+  connected_at: string;
+  /** Last time a browser operation confirmed the session is still logged in. */
+  last_ok_at: string | null;
+  /** Last session problem (e.g. logged out), cleared on success. */
+  error: string | null;
+}
+
+/** Profile read from the logged-in X session. */
+export interface XProfile {
+  handle: string;
+  name: string | null;
+  avatar_url: string | null;
+}
+
+export interface XMetrics {
+  likes: number | null;
+  reposts: number | null;
+  replies: number | null;
+  quotes: number | null;
+  bookmarks: number | null;
+  views: number | null;
 }
 
 // ---------- Capabilities ----------
@@ -125,7 +147,7 @@ export interface Capabilities {
   clip: boolean;
   ai_image: boolean;
   ai_video: boolean;
-  /** The product has X credentials, so it can publish. */
+  /** The product has a connected X session, so it can publish. */
   live: boolean;
 }
 

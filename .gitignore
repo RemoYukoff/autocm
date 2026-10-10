@@ -8,3 +8,4 @@ products/*/.env
 .DS_Store
 remotion/out/
 .claude/worktrees/
+data/sessions/

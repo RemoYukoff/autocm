@@ -3,7 +3,7 @@ import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { DB_PATH } from "../paths.ts";
-import type { PostRow, PostStatus } from "../types.ts";
+import type { PostRow, PostStatus, XAccount, XMetrics } from "../types.ts";
 
 let db: DatabaseSync | null = null;
 
@@ -88,4 +88,57 @@ export function logLlmCall(c: { post_id?: number; stage: string; model: string; 
   getDb()
     .prepare("INSERT INTO llm_calls (post_id, stage, model, ms, ok, error, cost_usd) VALUES (?, ?, ?, ?, ?, ?, ?)")
     .run(c.post_id ?? null, c.stage, c.model, c.ms, c.ok ? 1 : 0, c.error ?? null, c.cost_usd ?? null);
+}
+
+// ---------- X accounts ----------
+
+export function getXAccount(product: string): XAccount | null {
+  return (getDb().prepare("SELECT * FROM x_accounts WHERE product = ?").get(product) as unknown as XAccount | undefined) ?? null;
+}
+
+export function listXAccounts(): XAccount[] {
+  return getDb().prepare("SELECT * FROM x_accounts ORDER BY product").all() as unknown as XAccount[];
+}
+
+/** Insert or replace the product's account row. */
+export function saveXAccount(a: Omit<XAccount, "last_ok_at" | "error"> & Partial<Pick<XAccount, "last_ok_at" | "error">>): void {
+  getDb()
+    .prepare(
+      `INSERT INTO x_accounts (product, handle, name, avatar_path, connected_at, last_ok_at, error) VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(product) DO UPDATE SET handle = excluded.handle, name = excluded.name, avatar_path = excluded.avatar_path,
+         connected_at = excluded.connected_at, last_ok_at = excluded.last_ok_at, error = excluded.error`,
+    )
+    .run(a.product, a.handle, a.name, a.avatar_path, a.connected_at, a.last_ok_at ?? null, a.error ?? null);
+}
+
+/** Record the outcome of a browser operation on the account: ok sets last_ok_at and clears error. */
+export function markXAccount(product: string, result: { ok: true } | { ok: false; error: string }): void {
+  if (result.ok) getDb().prepare("UPDATE x_accounts SET last_ok_at = ?, error = NULL WHERE product = ?").run(nowIso(), product);
+  else getDb().prepare("UPDATE x_accounts SET error = ? WHERE product = ?").run(result.error, product);
+}
+
+export function deleteXAccount(product: string): void {
+  getDb().prepare("DELETE FROM x_accounts WHERE product = ?").run(product);
+}
+
+// ---------- post metrics ----------
+
+export function insertMetrics(postId: number, m: XMetrics): void {
+  getDb()
+    .prepare("INSERT INTO post_metrics (post_id, likes, reposts, replies, quotes, bookmarks, views) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(postId, m.likes, m.reposts, m.replies, m.quotes, m.bookmarks, m.views);
+}
+
+/** Latest metrics snapshot per post id. */
+export function latestMetrics(postIds: number[]): Map<number, XMetrics & { ts: string }> {
+  const out = new Map<number, XMetrics & { ts: string }>();
+  if (!postIds.length) return out;
+  const rows = getDb()
+    .prepare(
+      `SELECT m.* FROM post_metrics m JOIN (SELECT post_id, MAX(id) AS id FROM post_metrics WHERE post_id IN (${postIds.map(() => "?").join(",")})
+       GROUP BY post_id) last ON last.id = m.id`,
+    )
+    .all(...postIds) as unknown as (XMetrics & { post_id: number; ts: string })[];
+  for (const { post_id, ...m } of rows) out.set(post_id, m);
+  return out;
 }

@@ -61,8 +61,8 @@ export function checkGuards(product: Product, text: string): GuardResult {
   // (b) product enabled
   if (!c.enabled) return { ok: false, reason: `product ${slug} is disabled` };
 
-  // (b2) X credentials: without them there is nowhere to publish; the post waits until they are added
-  if (!product.xCreds) return { ok: false, reason: `no X credentials for ${slug} (add products/${slug}/.env)` };
+  // (b2) X session: without a connected account there is nowhere to publish; the post waits until it is connected
+  if (!product.xAccount) return { ok: false, reason: `X not connected for ${slug} (connect it from the dashboard)` };
 
   // (g) length / validity (cheap, checked early)
   if (!text.trim()) return { ok: false, reason: "empty text" };

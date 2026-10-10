@@ -1,12 +1,13 @@
 // Stream C (publish/ops). Signatures of publishPost / xWhoami are frozen (contracts-v1).
-import { getDb, getFlag, getPost, logEvent, nowIso, setFlag, updatePost } from "../core/db/index.ts";
+import { getDb, getFlag, getPost, logEvent, markXAccount, nowIso, setFlag, updatePost } from "../core/db/index.ts";
+import { track } from "../core/inflight.ts";
 import { log } from "../core/log.ts";
-import type { PostRow, Product, PublishResult } from "../core/types.ts";
+import type { PostRow, Product, PublishResult, XProfile } from "../core/types.ts";
 import { checkGuards } from "../safety/guards.ts";
 import { pause } from "../safety/pause.ts";
 import { textHash } from "../safety/text.ts";
 import { postMediaFiles } from "./media.ts";
-import { getXClient, mapXError, type XError, type XErrorKind } from "./x.ts";
+import { getXClient, mapXError, type XError } from "./x.ts";
 
 export { XAuthError, XError } from "./x.ts";
 
@@ -32,34 +33,6 @@ export class PublishStateError extends Error {
 
 export const FAILURES_FLAG = "consecutive_failures";
 export const MAX_CONSECUTIVE_FAILURES = 3;
-
-let retryDelayMs = Number(process.env.AUTOCM_RETRY_DELAY_MS ?? 15_000);
-
-/** Tests: shorten the backoff before the single retry. */
-export function setRetryDelayMs(ms: number): void {
-  retryDelayMs = ms;
-}
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-/** Run fn; on an XError whose kind is in `retryOn`, wait and try exactly once more. */
-async function withRetry<T>(fn: () => Promise<T>, retryOn: XErrorKind[], stage: string, ctx: { product: string; post_id: number }): Promise<T> {
-  try {
-    return await fn();
-  } catch (e) {
-    const err = mapXError(e, stage);
-    if (!retryOn.includes(err.kind)) throw err;
-    const wait = err.kind === "rate_limit" ? retryDelayMs * 4 : retryDelayMs;
-    logEvent("publish_retry", { ...ctx, payload: { stage, kind: err.kind, message: err.message, wait_ms: wait } });
-    log.warn({ ...ctx, stage, err: err.message }, `X ${stage} failed (${err.kind}); retrying once in ${wait} ms`);
-    await sleep(wait);
-    try {
-      return await fn();
-    } catch (e2) {
-      throw mapXError(e2, stage);
-    }
-  }
-}
 
 function recordFailure(product: string, err: XError): void {
   const n = Number(getFlag(FAILURES_FLAG) ?? 0) + 1;
@@ -121,27 +94,23 @@ export async function publishPost(post: PostRow, product: Product): Promise<Publ
 
   let tweet: { id: string; url: string };
   try {
-    const client = getXClient(product);
-    const mediaIds: string[] = [];
-    for (const file of postMediaFiles(current)) {
-      mediaIds.push(await withRetry(() => client.uploadMedia(file, current.alt_text), ["transient", "rate_limit"], "media upload", ctx));
-    }
-    if (mediaIds.length) logEvent("media_uploaded", { ...ctx, payload: { media_ids: mediaIds } });
-    // Only retry the tweet on 429: any other failure may have created the tweet server-side.
-    tweet = await withRetry(() => client.postTweet(text, mediaIds), ["rate_limit"], "tweet", ctx);
+    // No retry: once Post is clicked the outcome can be ambiguous, and a duplicate post is worse than a missed one.
+    tweet = await track(getXClient(product).post(text, postMediaFiles(current), current.alt_text));
   } catch (e) {
     const err = mapXError(e, "publish");
     updatePost(current.id, { status: "failed", error: err.message });
-    logEvent("publish_failed", { ...ctx, payload: { kind: err.kind, status: err.status, message: err.message } });
+    logEvent("publish_failed", { ...ctx, payload: { kind: err.kind, message: err.message } });
     log.error({ ...ctx, kind: err.kind, err: err.message }, "publish failed");
     recordFailure(slug, err);
+    if (err.kind === "auth") markXAccount(slug, { ok: false, error: err.message });
     throw err;
   }
+  markXAccount(slug, { ok: true });
   // Outside the try: if this DB write fails the post stays 'publishing' without tweet_id and recovery marks it failed.
   return markPublished(getPost(current.id) ?? current, tweet);
 }
 
-/** CLI `x whoami`: verify credentials for a product. */
-export async function xWhoami(product: Product): Promise<{ id: string; username: string }> {
-  return getXClient(product).whoami();
+/** CLI `x whoami`: read the profile of the product's logged-in X session. */
+export async function xWhoami(product: Product): Promise<XProfile> {
+  return track(getXClient(product).profile());
 }
