@@ -14,6 +14,10 @@
         <span class="brand-mark" aria-hidden="true"></span>
         <span class="brand-name">autocm</span>
       </div>
+      <div class="acct" id="acct">
+        <button class="acct-btn" id="acct-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu" title="Choose the account to show"><span class="acct-label"><span class="acct-name">Accounts</span></span></button>
+        <div class="acct-menu" id="acct-menu" role="menu" aria-label="Accounts" hidden></div>
+      </div>
       <div class="status" id="status" aria-live="polite"></div>
       <div class="top-actions">
         <button class="btn" id="pause-btn" type="button"></button>
@@ -28,6 +32,9 @@
       <p class="lede" id="lede-upcoming">Posts publish automatically at their time unless you discard them.</p>
       <ol class="timeline" id="upcoming"></ol>
       <p class="empty" id="upcoming-empty" hidden>Nothing planned. The scheduler plans each day at 00:05 UTC.</p>
+    </section>
+    <section id="view-account" class="view acct-view" hidden>
+      <div id="account-root"></div>
     </section>
   </main>
 
