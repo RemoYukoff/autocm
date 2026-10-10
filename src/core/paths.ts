@@ -2,7 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-export const PRODUCTS_DIR = path.join(ROOT, "products");
+export const PRODUCTS_DIR = process.env.AUTOCM_PRODUCTS_DIR ?? path.join(ROOT, "products");
 export const TEMPLATES_DIR = path.join(ROOT, "templates");
 export const REMOTION_DIR = path.join(ROOT, "remotion");
 export const DATA_DIR = process.env.AUTOCM_DATA_DIR ?? path.join(ROOT, "data");
