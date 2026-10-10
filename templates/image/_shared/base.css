@@ -97,19 +97,21 @@ em.hl {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Generated art stays a backdrop: dimmed so brand text always wins. */
+  filter: brightness(0.82) saturate(1.05);
 }
 
 .scrim {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, color-mix(in oklab, var(--bg) 92%, transparent) 0%, color-mix(in oklab, var(--bg) 72%, transparent) 48%, color-mix(in oklab, var(--bg) 18%, transparent) 100%),
-    linear-gradient(0deg, color-mix(in oklab, var(--bg) 80%, transparent) 0%, transparent 30%);
+    linear-gradient(90deg, color-mix(in oklab, var(--bg) 94%, transparent) 0%, color-mix(in oklab, var(--bg) 82%, transparent) 42%, color-mix(in oklab, var(--bg) 30%, transparent) 72%, color-mix(in oklab, var(--bg) 8%, transparent) 100%),
+    linear-gradient(0deg, color-mix(in oklab, var(--bg) 97%, transparent) 0%, color-mix(in oklab, var(--bg) 90%, transparent) 20%, transparent 40%);
 }
 
 .portrait .scrim {
   background:
-    linear-gradient(0deg, color-mix(in oklab, var(--bg) 94%, transparent) 0%, color-mix(in oklab, var(--bg) 70%, transparent) 55%, color-mix(in oklab, var(--bg) 25%, transparent) 100%);
+    linear-gradient(0deg, color-mix(in oklab, var(--bg) 96%, transparent) 0%, color-mix(in oklab, var(--bg) 80%, transparent) 55%, color-mix(in oklab, var(--bg) 30%, transparent) 100%);
 }
 
 .has-image .glow,
