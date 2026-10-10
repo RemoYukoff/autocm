@@ -1,0 +1,9 @@
+node_modules/
+out/
+data/*.db*
+data/PAUSE
+.env
+products/*/.env
+*.log
+.DS_Store
+remotion/out/
