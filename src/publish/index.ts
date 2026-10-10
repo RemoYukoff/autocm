@@ -8,6 +8,8 @@ import { pause } from "../safety/pause.ts";
 import { textHash } from "../safety/text.ts";
 import { postMediaFiles } from "./media.ts";
 import { getXClient, mapXError, type XError } from "./x.ts";
+// Side effect: registers the browser client (src/x/) as the default XClient. src/x imports only ./x.ts from here.
+import "../x/index.ts";
 
 export { XAuthError, XError } from "./x.ts";
 
