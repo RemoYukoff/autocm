@@ -10,7 +10,10 @@ import { generatePost } from "./pipeline.ts";
 import { publishPost, xWhoami } from "./publish/index.ts";
 import { pause, pausedReason, resume } from "./safety/pause.ts";
 import { planSlots, runDaemon, tick } from "./scheduler/index.ts";
+import { listJobs, lockedKeys, settleJobs } from "./dashboard/actions.ts";
 import { DEFAULT_PORT, startDashboard } from "./dashboard/server.ts";
+import { currentTick } from "./scheduler/tick.ts";
+import { watchSources } from "./core/watch.ts";
 
 const program = new Command().name("autocm").description("Autonomous X community manager");
 
@@ -69,6 +72,27 @@ program.command("plan").option("-d, --days <n>", "days ahead", "1").description(
   console.log(`${await planSlots(Number(o.days))} slots created`);
 });
 program.command("tick").description("Run one scheduler pass").action(tick);
+/** On a source change, wait until no tick or dashboard job is running, then stop the daemon via SIGTERM. */
+function restartWhenIdle(): () => void {
+  let poll: NodeJS.Timeout | undefined;
+  const idle = () => !currentTick() && !lockedKeys().length && !listJobs().some((j) => j.status === "running");
+  const stopWatching = watchSources((file) => {
+    if (poll) return;
+    log.info({ file }, "source changed: restarting once idle");
+    const check = () => {
+      if (!idle()) return;
+      clearInterval(poll);
+      process.kill(process.pid, "SIGTERM");
+    };
+    poll = setInterval(check, 2000);
+    check();
+  });
+  return () => {
+    clearInterval(poll);
+    stopWatching();
+  };
+}
+
 const portArg = (v: string | true | undefined): number => {
   const port = v === undefined || v === true ? DEFAULT_PORT : Number(v);
   if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error(`bad port "${String(v)}"`);
@@ -79,13 +103,18 @@ program
   .command("run")
   .description("Run the scheduler daemon")
   .option("--dashboard [port]", `also serve the dashboard on 127.0.0.1 (default port ${DEFAULT_PORT})`)
-  .action(async (o: { dashboard?: string | true }) => {
+  .option("--watch", "exit once idle after a source file changes (the service manager restarts it with the new code)")
+  .action(async (o: { dashboard?: string | true; watch?: boolean }) => {
     const server = o.dashboard ? startDashboard(portArg(o.dashboard)) : null;
+    const unwatch = o.watch ? restartWhenIdle() : null;
     try {
       await runDaemon();
     } finally {
+      unwatch?.();
       server?.close();
+      await settleJobs();
     }
+    if (o.watch) process.exit(0);
   });
 
 program

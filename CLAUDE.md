@@ -19,7 +19,10 @@ TypeScript on Node 24 (ESM, run with `tsx`, no build), pnpm, `node:sqlite`, zod 
 Remotion 4, ffmpeg/ffprobe (system), twitter-api-v2, node-cron, pino, vitest.
 
 ## Commands
-- `pnpm autocm <cmd>` — CLI (`src/cli.ts`): products list|validate, generate, publish, plan, tick, run [--dashboard], dashboard, pause, resume, history, render-fixture, x whoami, status.
+- `pnpm autocm <cmd>` — CLI (`src/cli.ts`): products list|validate, generate, publish, plan, tick, run [--dashboard] [--watch], dashboard, pause, resume, history, render-fixture, x whoami, status.
+- The app runs always-on as systemd user service `autocm` (`deploy/autocm.service`, symlinked) with `run --dashboard --watch`
+  from this checkout: edits to `src/`/`remotion/src/`/`.env` restart it once idle; `products/`, `templates/`, dashboard
+  `public/` apply live. Don't start a second `run` by hand (port 4321 is taken). Logs: `journalctl --user -u autocm -f`.
 - `pnpm typecheck`, `pnpm test`.
 - `pnpm tsx scripts/llm-smoke.ts [image]` — check Agent SDK structured output and image reading.
 

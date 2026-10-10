@@ -41,7 +41,23 @@ pnpm autocm tick         # one pass: generate due slots (cadence.generate_lead_m
 pnpm autocm run          # daemon: tick every 5 min, plan daily
 ```
 
-`deploy/autocm.service` is a systemd user unit to keep `run` alive on this machine.
+### Always-on local service
+
+`deploy/autocm.service` runs `run --dashboard --watch` from this checkout as a systemd user service, so the
+dashboard is always at http://127.0.0.1:4321 and survives reboots (linger is on).
+
+```sh
+ln -sf ~/repos/autocm/deploy/autocm.service ~/.config/systemd/user/autocm.service
+systemctl --user daemon-reload && systemctl --user enable --now autocm
+journalctl --user -u autocm -f            # logs
+systemctl --user restart autocm           # manual restart; stop/start the same way
+```
+
+Edits apply without touching the service:
+- `products/**`, `templates/**`, `src/dashboard/public/**`: read on every use, so the next post or page reload uses them.
+- `src/**`, `remotion/src/**`, `.env`, `package.json`, `pnpm-lock.yaml`: `--watch` sees the change, waits until no
+  tick or dashboard job is running, then exits; systemd restarts it with the new code a couple of seconds later.
+  Run `pnpm install` before a dependency change lands.
 
 ## Dashboard
 

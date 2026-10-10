@@ -1,18 +1,22 @@
-# systemd user unit to keep the scheduler running on this machine.
-# Install (manual, not done by the repo):
-#   cp deploy/autocm.service ~/.config/systemd/user/ && systemctl --user daemon-reload
-#   systemctl --user enable --now autocm
-#   journalctl --user -u autocm -f
+# systemd user unit: scheduler + dashboard (http://127.0.0.1:4321), always on, running straight from this checkout.
+# --watch makes the daemon exit once idle after a source change; Restart=always brings it back with the new code.
+# Install:
+#   ln -sf ~/repos/autocm/deploy/autocm.service ~/.config/systemd/user/autocm.service
+#   systemctl --user daemon-reload && systemctl --user enable --now autocm
+# Logs: journalctl --user -u autocm -f
 [Unit]
-Description=autocm scheduler (autonomous X community manager)
+Description=autocm scheduler + dashboard (autonomous X community manager)
 After=network-online.target
 
 [Service]
 WorkingDirectory=%h/repos/autocm
-ExecStart=/usr/bin/env pnpm autocm run
-Restart=on-failure
-RestartSec=30
-Environment=NODE_ENV=production
+Environment=PATH=%h/.local/share/pnpm/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/repos/autocm/node_modules/.bin/tsx src/cli.ts run --dashboard --watch
+Restart=always
+RestartSec=2
+# SIGTERM only the daemon (it drains the current tick); helper processes are killed after it exits.
+KillMode=mixed
+TimeoutStopSec=900
 
 [Install]
 WantedBy=default.target
