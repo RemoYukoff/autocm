@@ -19,12 +19,13 @@ TypeScript on Node 24 (ESM, run with `tsx`, no build), pnpm, `node:sqlite`, zod 
 Remotion 4, ffmpeg/ffprobe (system), twitter-api-v2, node-cron, pino, vitest.
 
 ## Commands
-- `pnpm autocm <cmd>` — CLI (`src/cli.ts`): products list|validate, generate, publish, plan, tick, run, pause, resume, history, render-fixture, x whoami, status.
+- `pnpm autocm <cmd>` — CLI (`src/cli.ts`): products list|validate, generate, publish, plan, tick, run [--dashboard], dashboard, pause, resume, history, render-fixture, x whoami, status.
 - `pnpm typecheck`, `pnpm test`.
 - `pnpm tsx scripts/llm-smoke.ts [image]` — check Agent SDK structured output and image reading.
 
 ## Layout
 - `products/<slug>/` product.yaml, knowledge/*.md, assets/ (logo, fonts, clips, screens)
 - `templates/image/<id>/` HTML image templates; `remotion/` video compositions
+- `src/dashboard` local review UI (Hono, 127.0.0.1:4321)
 - `src/core` config, db, types; `src/agents` LLM stages; `src/media` rendering; `src/publish` X; `src/safety` guards; `src/scheduler` slots/daemon
 - `out/<product>/<date>/<postId>/` generated artifacts; `data/autocm.db` state (both gitignored)

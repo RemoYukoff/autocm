@@ -43,6 +43,18 @@ pnpm autocm run          # daemon: tick every 5 min, plan daily
 
 `deploy/autocm.service` is a systemd user unit to keep `run` alive on this machine.
 
+## Dashboard
+
+```sh
+pnpm autocm run --dashboard     # scheduler + dashboard in one process (recommended)
+pnpm autocm dashboard           # dashboard only, http://127.0.0.1:4321
+```
+
+Shows upcoming slots with an X-style preview of each generated post (text, image or video), ready posts and
+history. Actions: discard (veto), skip a slot, regenerate (optionally forcing a format), publish now (guards
+still apply), generate a new post, pause/resume. Without a veto, posts publish on schedule. Posts are generated
+`cadence.generate_lead_min` (default 180) minutes before their slot, which is the review window.
+
 ## Going live on X
 
 1. Create an app at developer.x.com with Read and Write permissions, and generate OAuth 1.0a user tokens for the product's account.
