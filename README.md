@@ -15,7 +15,7 @@ No approval needed; a local dashboard lets you watch upcoming posts and veto the
    AI image/video providers are used only when keys are set, with fallback to templates/Remotion.
 5. **Hard checks**: only what X itself would refuse (≤280 weighted chars, media size/duration/codec).
    A tweet that is too long is rewritten up to 2 times. There is no LLM review.
-6. **Publisher**: guards (pause, daily caps, min gap, duplicates), X credentials, then X API v2. There is no dry-run: every publish goes to X.
+6. **Publisher**: guards (pause, daily caps, min gap, duplicates, X connected), then the post goes out through the product's logged-in browser profile. There is no dry-run and no X API.
 
 LLM calls run through the Claude Agent SDK on your Claude Code subscription (`src/llm.ts`), with your own
 settings, hooks, plugins and MCP servers disabled for those calls.
@@ -107,12 +107,12 @@ in the dashboard, but publishing is blocked by a guard (`X not connected`); a bl
 - Kill switch: `pnpm autocm pause [reason]` / `resume`, `AUTOCM_PAUSED=1`, or a `data/PAUSE` file.
 - Per-product `daily_cap`, global `AUTOCM_GLOBAL_DAILY_CAP`, `min_gap_min` between posts.
 - Exact and near-duplicate check right before publishing.
-- Auto-pause after 3 consecutive publish failures or any X 401/403.
+- Auto-pause after 3 consecutive publish failures or when the X session is logged out or locked.
 - Never re-posts blindly after a crash: posts stuck in `publishing` are marked failed.
 
 ## Adding a product
 
-See `products/README.md`. A product is a folder: `product.yaml`, `knowledge/*.md`, `assets/`, and an optional `.env` with its X credentials.
+See `products/README.md`. A product is a folder: `product.yaml`, `knowledge/*.md`, `assets/`. Its X account is connected through the browser (see "Connecting X").
 
 ## Development
 
