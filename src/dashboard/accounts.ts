@@ -155,7 +155,6 @@ const nonEmpty = (v: unknown): v is unknown[] => Array.isArray(v) && v.length > 
 /** Make the website draft valid on its own: nobody reviews it, so every gap gets a sane default. */
 export function completeDraft(draft: ProductDraft, account: XAccount): NewProduct {
   const c = { ...draft.config };
-  c.handle = account.handle;
   if (typeof c.name !== "string" || !c.name.trim()) c.name = account.name || account.handle;
   if (typeof c.one_liner !== "string" || !c.one_liner.trim()) c.one_liner = `${String(c.name)}, see ${String(c.url)}`;
   if (typeof c.audience !== "string" || !c.audience.trim()) c.audience = `People who would use ${String(c.name)}`;

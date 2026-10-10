@@ -66,7 +66,7 @@ export interface XAccountView {
 export interface ProductView {
   slug: string;
   name: string;
-  /** @handle shown on previews: the connected account's, else product.yaml's `handle`. */
+  /** @handle of the connected X account, shown on previews. */
   handle: string | null;
   timezone: string;
   daily_cap: number;
@@ -226,7 +226,7 @@ export function productViews(now = new Date()): ProductView[] {
     return {
       slug: c.slug,
       name: c.name,
-      handle: x?.handle ?? (c.handle ? c.handle.replace(/^@/, "") : null),
+      handle: x?.handle ?? null,
       timezone: c.timezone,
       daily_cap: c.cadence.daily_cap,
       today_count: countPublishedBetween(today.start, today.end, c.slug),

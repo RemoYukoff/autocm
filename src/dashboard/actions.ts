@@ -68,7 +68,6 @@ export function pausePublishing(reason?: string): string | null {
   return pausedReason();
 }
 
-/** Clears the DB flag and the pause file; AUTOCM_PAUSED=1 in the environment still wins. */
 export function resumePublishing(): string | null {
   resume();
   return pausedReason();

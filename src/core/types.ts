@@ -32,7 +32,6 @@ export const ProductConfig = z.object({
   slug: z.string().regex(/^[a-z0-9-]+$/),
   name: z.string(),
   url: z.url(),
-  handle: z.string().optional(),
   enabled: z.boolean().default(true),
   language: z.string().default("en"),
   timezone: z.string().default("America/New_York"),

@@ -36,7 +36,7 @@ export class BrowserXClient implements XClient {
   }
 
   private handle(): string | null {
-    return this.product.xAccount?.handle ?? getXAccount(this.slug)?.handle ?? this.product.config.handle?.replace(/^@/, "") ?? null;
+    return this.product.xAccount?.handle ?? getXAccount(this.slug)?.handle ?? null;
   }
 
   /** Run one operation in its own session; record the outcome on the account, screenshot on failure. */

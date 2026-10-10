@@ -8,7 +8,6 @@ export const REMOTION_DIR = path.join(ROOT, "remotion");
 export const DATA_DIR = process.env.AUTOCM_DATA_DIR ?? path.join(ROOT, "data");
 export const OUT_DIR = process.env.AUTOCM_OUT_DIR ?? path.join(ROOT, "out");
 export const DB_PATH = process.env.AUTOCM_DB ?? path.join(DATA_DIR, "autocm.db");
-export const PAUSE_FILE = path.join(DATA_DIR, "PAUSE");
 /** Browser profiles with the logged-in X session, one per product. Holds auth cookies: never log or commit. */
 export const SESSIONS_DIR = path.join(DATA_DIR, "sessions");
 /** X avatars of accounts whose product folder does not exist yet (data/accounts/<slug>/). */
