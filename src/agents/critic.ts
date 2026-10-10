@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Brief, Draft, MediaResult, PostRow, Product, QAVerdict } from "../core/types.ts";
 import { QAFix } from "../core/types.ts";
 import { callJson } from "../llm.ts";
+import { trigramSimilarity } from "../safety/text.ts";
 import { weightedLength } from "./copywriter.ts";
 import { historyContext, productContext } from "./context.ts";
 
@@ -36,6 +37,7 @@ export function deterministicIssues(product: Product, brief: Brief, draft: Draft
   if (urls.length > 1) textIssues.push("More than one link.");
   if (text.includes("{{")) textIssues.push("Unreplaced template placeholder in text.");
   if (brief.media_kind !== "none" && !draft.alt_text) textIssues.push("Missing alt text for the media.");
+  for (const lifted of liftedSentences(text, product)) textIssues.push(`Sentence lifted from the knowledge base or example posts: "${lifted}". Write it in fresh words.`);
 
   if (brief.media_kind !== "none") {
     if (!media.files.length) mediaIssues.push("No media file was produced.");
@@ -54,6 +56,18 @@ export function deterministicIssues(product: Product, brief: Brief, draft: Draft
   const issues = [...textIssues, ...mediaIssues];
   const fix: QAFix = mediaIssues.length ? "rerender" : textIssues.length ? "rewrite_text" : "none";
   return { issues, fix };
+}
+
+/** Similarity at which a tweet sentence counts as copied from source material. */
+export const LIFTED_THRESHOLD = 0.7;
+
+const sentences = (s: string) =>
+  s.split(/(?<=[.!?])\s+|\n+/).map((x) => x.replace(/^[\s>*#-]+/, "").trim()).filter((x) => x.split(/\s+/).length >= 5);
+
+/** Tweet sentences that are near-copies of example posts or knowledge sentences. */
+export function liftedSentences(text: string, product: Product): string[] {
+  const sources = [...product.config.voice.example_posts, ...sentences(product.knowledge)];
+  return sentences(text).filter((t) => sources.some((src) => trigramSimilarity(t, src) >= LIFTED_THRESHOLD));
 }
 
 const ReviewSchema = z.object({
