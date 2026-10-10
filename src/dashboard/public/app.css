@@ -522,6 +522,8 @@ body.in-account .top { padding-bottom: 14px; }
   .when-count { margin-top: 0; }
   .top-row { gap: 10px 12px; }
   .acct-btn { max-width: calc(100vw - 150px); }
+  .status { order: 3; flex-basis: 100%; }
+  .status .pill-btn { white-space: normal; text-align: left; }
   .acct-menu { position: fixed; left: 16px; right: 16px; top: 64px; width: auto; }
   .fs { padding: 16px 14px; }
   .pf-row { flex-direction: column; }

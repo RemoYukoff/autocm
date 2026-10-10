@@ -418,7 +418,7 @@ function yamlFor(config: ProductConfig, existing?: string): string {
       const doc = YAML.parseDocument(existing);
       if (!doc.errors.length && isObj(doc.toJS())) {
         patchDoc(doc, [], doc.toJS(), JSON.parse(JSON.stringify(config)));
-        return doc.toString({ lineWidth: 0 });
+        return doc.toString({ lineWidth: 0, flowCollectionPadding: false });
       }
     } catch {
       // fall through to a fresh file
