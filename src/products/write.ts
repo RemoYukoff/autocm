@@ -431,12 +431,20 @@ function finish(plan: Plan): void {
   for (const c of plan.copies) dropUpload(c.upload.token);
 }
 
-/** Create products/<slug>/ from the form. Throws ProductWriteError with field errors. */
-export function createProduct(slugIn: unknown, body: unknown): SaveResult {
+/** Check the create form without writing anything. Returns the slug. Throws ProductWriteError with field errors. */
+export function validateCreate(slugIn: unknown, body: unknown): string {
   const slug = typeof slugIn === "string" ? slugIn.trim() : "";
   if (!SLUG_RE.test(slug)) throw new ProductWriteError(400, "Some fields need fixing", { slug: "Lowercase letters, digits and dashes (max 40)" });
   const dir = productDir(slug);
   if (fs.existsSync(dir)) throw new ProductWriteError(409, `A product called "${slug}" already exists`, { slug: "Already taken" });
+  planSave(slug, dir, body, true);
+  return slug;
+}
+
+/** Create products/<slug>/ from the form. Throws ProductWriteError with field errors. */
+export function createProduct(slugIn: unknown, body: unknown): SaveResult {
+  const slug = validateCreate(slugIn, body);
+  const dir = productDir(slug);
   const plan = planSave(slug, dir, body, true);
 
   fs.mkdirSync(PRODUCTS_DIR, { recursive: true });

@@ -1,22 +1,24 @@
 // Accounts in the dashboard: connect / disconnect a product's X session and "Fill from website" drafts.
 // Both run as background jobs wrapped in track(), so the service's code-reload restarter waits for them.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { listProductSlugs } from "../core/config.ts";
-import { getXAccount, nowIso } from "../core/db/index.ts";
+import { deleteProductData, deleteXAccount, getXAccount, logEvent, nowIso, saveXAccount } from "../core/db/index.ts";
 import { track } from "../core/inflight.ts";
 import { log } from "../core/log.ts";
-import { PRODUCTS_DIR } from "../core/paths.ts";
+import { OUT_DIR, PRODUCTS_DIR, sessionDir } from "../core/paths.ts";
 import type { XAccount } from "../core/types.ts";
 import { draftFromWebsite, normalizeSiteUrl, type ProductDraft } from "../products/prefill.ts";
-import { SLUG_RE } from "../products/write.ts";
-import { connectX, disconnectX } from "../x/index.ts";
+import { createProduct, productDir, SLUG_RE, validateCreate } from "../products/write.ts";
+import { currentTick } from "../scheduler/tick.ts";
+import { connectWithBrowser, connectX, disconnectX } from "../x/index.ts";
 import { ActionError } from "./actions.ts";
 
 export interface AccountJob {
   id: number;
-  kind: "connect" | "prefill";
-  /** Product slug (connect) or null (prefill: the product does not exist yet). */
+  kind: "create" | "connect" | "prefill";
+  /** Product slug (create, connect) or null (prefill: the product does not exist yet). */
   product: string | null;
   url: string | null;
   status: "running" | "done" | "failed";
@@ -98,10 +100,54 @@ export function startConnect(slug: string): AccountJob {
   });
 }
 
-export async function disconnect(slug: string): Promise<void> {
+/**
+ * Add an account: validate the form, open the X login window, and write the product only once the login succeeded.
+ * Cancelled or failed logins leave nothing behind (no product folder, no session, no account row).
+ */
+export function startCreate(body: Record<string, unknown>): AccountJob {
+  const slug = validateCreate(body.slug, body);
+  if (listAccountJobs().some((j) => j.kind === "create" && j.product === slug && j.status === "running")) {
+    throw new ActionError(409, `already adding ${slug}: finish logging in in the window that opened`);
+  }
+  return start({ kind: "create", product: slug, url: null }, async (job) => {
+    // A session left by an abandoned attempt could belong to another X account: always start from a clean profile.
+    fs.rmSync(sessionDir(slug), { recursive: true, force: true });
+    deleteXAccount(slug);
+    const stage = fs.mkdtempSync(path.join(os.tmpdir(), "autocm-avatar-"));
+    try {
+      job.step = "Log in to X in the window that opened";
+      const account = await connectWithBrowser(slug, { avatarDir: stage });
+      job.step = "Saving the account";
+      createProduct(slug, body);
+      if (account.avatar_path) {
+        const dest = path.join(productDir(slug), "assets", path.basename(account.avatar_path));
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.copyFileSync(account.avatar_path, dest);
+        saveXAccount({ ...account, avatar_path: dest });
+      }
+      logEvent("product_created", { product: slug, payload: { source: "dashboard", handle: account.handle } });
+      log.info({ product: slug, handle: account.handle }, "account added");
+      return null;
+    } catch (e) {
+      fs.rmSync(sessionDir(slug), { recursive: true, force: true });
+      deleteXAccount(slug);
+      throw e;
+    } finally {
+      fs.rmSync(stage, { recursive: true, force: true });
+    }
+  });
+}
+
+/** Delete an account: its product folder, X session, generated files and every row about it. */
+export async function deleteAccount(slug: string): Promise<void> {
   requireProduct(slug);
-  if (running("connect", slug)) throw new ActionError(409, `a connect for ${slug} is still running`);
+  if (listAccountJobs().some((j) => j.product === slug && j.status === "running")) throw new ActionError(409, `${slug} is busy; try again when it finishes`);
+  if (currentTick()) throw new ActionError(409, "the scheduler is writing or publishing right now; try again in a minute");
   await disconnectX(slug);
+  fs.rmSync(productDir(slug), { recursive: true, force: true });
+  fs.rmSync(path.join(OUT_DIR, slug), { recursive: true, force: true });
+  deleteProductData(slug);
+  log.info({ product: slug }, "account deleted");
 }
 
 /** Read the website in the background and keep the draft until the form asks for it. */

@@ -158,7 +158,7 @@ export function createAccounts(ctx) {
     if (connectJob(p.slug)) return `<span class="acct-sub busy">connecting…</span>`;
     if (p.x?.error) return `<span class="acct-sub err">@${esc(p.x.handle)} · session problem</span>`;
     if (p.x) return `<span class="acct-sub">@${esc(p.x.handle)}</span>`;
-    return `<span class="acct-sub">not connected</span>`;
+    return `<span class="acct-sub err">X session missing</span>`;
   }
 
   function renderSelector() {
@@ -175,8 +175,7 @@ export function createAccounts(ctx) {
     const rows = list
       .map((p) => {
         const tools = [];
-        if (!p.x && !p.invalid && !connectJob(p.slug)) tools.push(`<button type="button" class="mini" data-acct-connect="${esc(p.slug)}">Connect X</button>`);
-        if (p.x?.error && !connectJob(p.slug)) tools.push(`<button type="button" class="mini mini-warn" data-acct-connect="${esc(p.slug)}">Reconnect</button>`);
+        if ((!p.x || p.x.error) && !p.invalid && !connectJob(p.slug)) tools.push(`<button type="button" class="mini mini-warn" data-acct-connect="${esc(p.slug)}">Reconnect</button>`);
         tools.push(`<button type="button" class="mini" data-acct-edit="${esc(p.slug)}" aria-label="Edit ${esc(p.name)}">Edit</button>`);
         return `<div class="acct-row${p.enabled ? "" : " off"}">
           <button type="button" class="acct-item" role="menuitemradio" aria-checked="${p.slug === state.selected}" data-acct-select="${esc(p.slug)}">
@@ -253,12 +252,15 @@ export function createAccounts(ctx) {
     await refresh();
   }
 
-  async function disconnect(slug) {
+  async function deleteAccount(slug) {
     const p = products().find((x) => x.slug === slug);
-    if (!confirm(`Disconnect @${p?.x?.handle ?? slug}? Its browser session is deleted and nothing publishes for ${p?.name ?? slug} until you connect again.`)) return;
+    if (!confirm(`Delete ${p?.name ?? slug}${p?.x ? ` (@${p.x.handle})` : ""}? Its settings, knowledge, assets, X session and every planned post are removed. This cannot be undone.`)) return;
     try {
-      await api("POST", `/api/products/${encodeURIComponent(slug)}/x/disconnect`);
-      toast("X disconnected.", "ok");
+      await api("POST", `/api/products/${encodeURIComponent(slug)}/delete`);
+      toast(`${p?.name ?? slug} deleted.`, "ok");
+      if (model) model.dirty = false;
+      select("", { toPosts: true });
+      location.hash = "";
     } catch (e) {
       toast(e.message, "error");
     }
@@ -279,13 +281,13 @@ export function createAccounts(ctx) {
       body = `<div class="x-state">${avatarHtml(p, "av av-lg")}<div class="x-who"><strong>${esc(x.name || x.handle)}</strong><span class="muted">@${esc(x.handle)}</span>
         <span class="muted small">Connected ${esc(fmt(x.connected_at))}${x.last_ok_at ? ` · session checked ${esc(fmt(x.last_ok_at))}` : ""}</span></div></div>
         ${x.error ? `<p class="warn">Session problem: ${esc(x.error)}. Posts for this account are held until you reconnect.</p>` : ""}
-        <div class="actions">${x.error ? `<button type="button" class="btn btn-primary" data-x="connect">Reconnect</button>` : ""}<button type="button" class="btn btn-danger" data-x="disconnect">Disconnect</button></div>`;
+        <div class="actions">${x.error ? `<button type="button" class="btn btn-primary" data-x="connect">Reconnect</button>` : ""}<button type="button" class="btn btn-danger" data-x="delete">Delete account</button></div>`;
     } else {
-      body = `<div class="x-state"><span class="av av-lg av-empty" aria-hidden="true">X</span><div><strong>Not connected</strong><p class="muted small">Posts are written and shown here but never published until an X account is connected.</p></div></div>
+      body = `<div class="x-state"><span class="av av-lg av-empty" aria-hidden="true">X</span><div><strong>X session missing</strong><p class="muted small">Nothing publishes for this account until you log in again.</p></div></div>
         ${lastFailed?.status === "failed" ? `<p class="warn">Last attempt failed: ${esc(lastFailed.error ?? "unknown error")}</p>` : ""}
-        <div class="actions"><button type="button" class="btn btn-primary" data-x="connect">Connect X</button></div>`;
+        <div class="actions"><button type="button" class="btn btn-primary" data-x="connect">Reconnect</button><button type="button" class="btn btn-danger" data-x="delete">Delete account</button></div>`;
     }
-    return `<h2>X account</h2><p class="hint">autocm posts through a logged-in browser session for this account. Connecting opens a window on this computer where you log in.</p>${body}`;
+    return `<h2>X account</h2><p class="hint">autocm posts through a logged-in browser session for this account. Reconnecting opens a window on this computer where you log in.</p>${body}`;
   }
 
   function renderXCard() {
@@ -525,7 +527,7 @@ export function createAccounts(ctx) {
     }
     return `<section class="fs fs-prefill">
       <h2>Start from the website</h2>
-      <p class="hint">Reads the homepage and a few pages like pricing, features and about in a hidden browser, then drafts every field below plus an overview knowledge file. Nothing is saved until you press Create account.</p>
+      <p class="hint">Reads the homepage and a few pages like pricing, features and about in a hidden browser, then drafts every field below plus an overview knowledge file. Nothing is saved until you create the account and log in to X.</p>
       <form class="pf-row" data-act-form="prefill">
         <input type="url" id="pf-url" placeholder="https://yourproduct.com" value="${esc(pf?.url ?? v("url") ?? "")}" ${running ? "disabled" : ""} aria-label="Product website">
         <button type="submit" class="btn btn-primary" ${running ? "disabled" : ""}>${running ? "Reading…" : "Fill from website"}</button>
@@ -629,8 +631,9 @@ export function createAccounts(ctx) {
         </section>
 
         <div class="save-bar">
-          <button type="submit" class="btn btn-primary" ${model.saving || model.uploading ? "disabled" : ""}>${model.saving ? "Saving…" : model.uploading ? "Uploading…" : create ? "Create account" : "Save changes"}</button>
+          <button type="submit" class="btn btn-primary" ${model.saving || model.uploading ? "disabled" : ""}>${model.saving ? (create ? "Waiting for X login…" : "Saving…") : model.uploading ? "Uploading…" : create ? "Create account and log in to X" : "Save changes"}</button>
           <a href="#upcoming" class="btn btn-ghost" data-act="back">Cancel</a>
+          ${create && model.saving ? `<span class="save-msg"><span class="spinner sm" aria-hidden="true"></span> ${esc(model.createStep || "Log in to X in the window that opened")}. The account is saved once you are in.</span>` : ""}
           <span class="save-msg" id="save-msg">${Object.keys(model.errors).length ? `<span class="err">${Object.keys(model.errors).length} field${Object.keys(model.errors).length === 1 ? "" : "s"} to fix</span>` : model.dirty ? "Unsaved changes" : ""}</span>
         </div>
       </form>`;
@@ -760,7 +763,7 @@ export function createAccounts(ctx) {
     const b = ev.target.closest("[data-act], [data-x]");
     if (!b) return;
     if (b.dataset.x === "connect") return connect(model.slug);
-    if (b.dataset.x === "disconnect") return disconnect(model.slug);
+    if (b.dataset.x === "delete") return deleteAccount(model.slug);
     const act = b.dataset.act;
     if (act === "back") {
       if (!confirmLeave()) ev.preventDefault();
@@ -937,7 +940,9 @@ export function createAccounts(ctx) {
   async function save() {
     if (model.saving || model.uploading) return;
     const create = model.mode === "create";
+    if (create && !confirm("A browser window opens on this computer. Log in there to the X account that will post for this product. The account is saved once you are in; closing the window cancels.")) return;
     model.saving = true;
+    model.createStep = null;
     model.errors = {};
     renderForm();
     let res;
@@ -952,8 +957,9 @@ export function createAccounts(ctx) {
     } catch (e) {
       data = { error: e.message };
     }
+    if (res?.ok && create) data = await waitForCreate(data.job);
     model.saving = false;
-    if (!res?.ok) {
+    if (!res?.ok || data.error) {
       model.errors = data.errors ?? {};
       renderForm();
       toast(data.error || "Could not save", "error");
@@ -963,13 +969,31 @@ export function createAccounts(ctx) {
     }
     model.dirty = false;
     for (const n of data.notes ?? []) toast(n, "info");
-    toast(create ? `Account ${data.slug} created. Connect its X account next.` : "Saved.", "ok");
+    toast(create ? `Account ${data.slug} added.` : "Saved.", "ok");
     await refresh();
     if (create) {
       select(data.slug, { toPosts: false });
       location.hash = `#account/${data.slug}`;
     } else {
       await openView(model.slug);
+    }
+  }
+
+  /** Follow the create job (X login, then writing the product). Resolves to {slug} or {error}. */
+  async function waitForCreate(job) {
+    for (;;) {
+      if (job.status === "done") return { slug: job.product };
+      if (job.status === "failed") return { error: job.error || "Could not add the account" };
+      if (model && job.step !== model.createStep) {
+        model.createStep = job.step;
+        renderForm();
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        job = (await api("GET", `/api/jobs/${job.id}`)).job;
+      } catch (e) {
+        return { error: e.message };
+      }
     }
   }
 

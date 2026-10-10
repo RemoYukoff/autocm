@@ -120,3 +120,9 @@ export function markXAccount(product: string, result: { ok: true } | { ok: false
 export function deleteXAccount(product: string): void {
   getDb().prepare("DELETE FROM x_accounts WHERE product = ?").run(product);
 }
+
+/** Forget a deleted product: its slots, posts, events and X account row. */
+export function deleteProductData(product: string): void {
+  const db = getDb();
+  for (const table of ["slots", "posts", "events", "x_accounts"]) db.prepare(`DELETE FROM ${table} WHERE product = ?`).run(product);
+}

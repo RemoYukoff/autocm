@@ -10,8 +10,8 @@ import { logEvent } from "../core/db/index.ts";
 import { log } from "../core/log.ts";
 import { OUT_DIR, ROOT } from "../core/paths.ts";
 import { decodeBase64, getUpload, MAX_UPLOAD_BODY, stageUpload, UPLOAD_RULES, UploadError, type UploadKind } from "../products/uploads.ts";
-import { createProduct, ProductWriteError, readProductForEdit, SLUG_RE, updateProduct } from "../products/write.ts";
-import { avatarFile, disconnect, getAccountJob, listAccountJobs, productAssetFile, startConnect, startPrefill } from "./accounts.ts";
+import { ProductWriteError, readProductForEdit, SLUG_RE, updateProduct } from "../products/write.ts";
+import { avatarFile, deleteAccount, getAccountJob, listAccountJobs, productAssetFile, startConnect, startCreate, startPrefill } from "./accounts.ts";
 import { ActionError, discardPost, pausePublishing, resumePublishing } from "./actions.ts";
 import { headerState, postView, productViews, upcomingSlots } from "./queries.ts";
 
@@ -193,10 +193,7 @@ export function createApp(): Hono {
   });
   app.post("/api/products", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
     try {
-      const b = await body(c);
-      const r = createProduct(b.slug, b);
-      logProductEvent("product_created", r.slug);
-      return c.json(r, 201);
+      return c.json({ job: startCreate(await body(c)) }, 202);
     } catch (e) {
       return fail(c, e);
     }
@@ -225,14 +222,19 @@ export function createApp(): Hono {
       return fail(c, e);
     }
   });
-  app.post("/api/products/:slug/x/disconnect", async (c) => {
+  app.post("/api/products/:slug/delete", async (c) => {
     try {
       const slug = slugParam(c);
-      await disconnect(slug);
-      return c.json({ ok: true, account: productViews().find((p) => p.slug === slug) ?? null });
+      await deleteAccount(slug);
+      logProductEvent("product_deleted", slug);
+      return c.json({ ok: true });
     } catch (e) {
       return fail(c, e);
     }
+  });
+  app.get("/api/jobs/:id", (c) => {
+    const j = getAccountJob(Number(c.req.param("id")));
+    return j ? c.json({ job: j.job }) : c.json({ error: "unknown job" }, 404);
   });
 
   // Staged uploads (logo, screens, clips, fonts): JSON with base64 data, so the JSON-only CSRF rule still holds.
