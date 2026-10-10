@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>comparison</title>
+    <link rel="stylesheet" href="/brand.css" />
+    <link rel="stylesheet" href="../_shared/base.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="card" id="card">
+      <section class="body" id="body">
+        <h1 class="headline" id="headline"></h1>
+        <div class="table" id="table"></div>
+      </section>
+    </main>
+    <script type="module">
+      import { D, $, el, frame, segs, finish, icons } from "../_shared/runtime.js";
+      frame();
+      segs($("#headline"), D.headline);
+
+      const table = $("#table");
+      const rows = D.rows.slice(0, 6);
+      table.style.gridTemplateRows = `repeat(${rows.length + 1}, auto)`;
+      const panel = el("div", "panel");
+      panel.style.gridRow = `1 / ${rows.length + 2}`;
+      table.append(panel);
+
+      const head = (cls, label, icon) => {
+        const h = el("div", `cell head ${cls}`);
+        const i = el("span", "ico");
+        i.innerHTML = icon;
+        h.append(i, el("span", null, label));
+        return h;
+      };
+      // Every cell gets an explicit row: the panel already occupies column 2, so auto-placement would
+      // push the right-hand cells below it.
+      const place = (node, row) => ((node.style.gridRow = String(row)), node);
+      table.append(
+        place(head("left", D.leftLabel || "Before", icons.cross), 1),
+        place(head("right", D.rightLabel || D.brand.name, icons.check), 1),
+      );
+      rows.forEach(([l, r], i) => {
+        const last = i === rows.length - 1 ? " last" : "";
+        table.append(place(segs(el("div", `cell left${last}`), l), i + 2), place(segs(el("div", `cell right${last}`), r), i + 2));
+      });
+
+      finish(() => [{ name: "body", region: $("#body"), min: 0.45 }]);
+    </script>
+  </body>
+</html>

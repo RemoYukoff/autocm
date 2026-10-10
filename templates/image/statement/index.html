@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>statement</title>
+    <link rel="stylesheet" href="/brand.css" />
+    <link rel="stylesheet" href="../_shared/base.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="card" id="card">
+      <section class="body" id="body">
+        <div class="stack">
+          <h1 class="headline" id="headline"></h1>
+          <p class="sub" id="sub"></p>
+        </div>
+      </section>
+    </main>
+    <script type="module">
+      import { D, $, frame, segs, finish } from "../_shared/runtime.js";
+      frame();
+      segs($("#headline"), D.headline);
+      if (D.lines.length) D.lines.slice(0, 2).forEach((l, i) => {
+        if (i) $("#sub").append(document.createElement("br"));
+        const span = document.createElement("span");
+        segs(span, l);
+        $("#sub").append(span);
+      });
+      else $("#sub").remove();
+      finish(() => [{ name: "body", region: $("#body"), min: 0.4 }]);
+    </script>
+  </body>
+</html>

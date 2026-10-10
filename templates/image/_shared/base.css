@@ -1,0 +1,203 @@
+/* Shared card chrome. Brand tokens (--bg, --fg, --muted, --hl, --primary, --accent, --sans, --mono)
+   come from /brand.css, generated per product by src/media/image.ts. */
+
+:root {
+  --pad-x: 104px;
+  --pad-y: 84px;
+  --foot: 22px;
+  --eyebrow: 17px;
+  --soft: color-mix(in oklab, var(--fg) 64%, var(--bg));
+  --faint: color-mix(in oklab, var(--fg) 42%, var(--bg));
+  --line: color-mix(in oklab, var(--fg) 10%, transparent);
+  --line-strong: color-mix(in oklab, var(--fg) 16%, transparent);
+  --panel: color-mix(in oklab, var(--fg) 3.5%, var(--bg));
+}
+
+body.portrait {
+  --pad-x: 88px;
+  --pad-y: 92px;
+  --foot: 24px;
+  --eyebrow: 19px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: var(--w);
+  height: var(--h);
+  overflow: hidden;
+  background: var(--bg);
+}
+
+body {
+  font-family: var(--sans);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  font-kerning: normal;
+}
+
+em.hl {
+  font-style: normal;
+  color: var(--hl);
+}
+
+.card {
+  position: relative;
+  width: var(--w);
+  height: var(--h);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pad-y) var(--pad-x) calc(var(--pad-y) - 12px);
+  isolation: isolate;
+}
+
+/* ---------- Backdrop ---------- */
+
+.bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.glow {
+  position: absolute;
+  width: 1500px;
+  height: 1500px;
+  right: -620px;
+  top: -820px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in oklab, var(--primary) 30%, transparent) 0%, transparent 62%);
+}
+
+.dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(color-mix(in oklab, var(--fg) 13%, transparent) 1.15px, transparent 1.6px);
+  background-size: 22px 22px;
+  background-position: 11px 11px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 70% at 100% 0%, #000 0%, transparent 70%);
+  mask-image: radial-gradient(ellipse 60% 70% at 100% 0%, #000 0%, transparent 70%);
+}
+
+.theme-light .glow {
+  background: radial-gradient(circle, color-mix(in oklab, var(--primary) 14%, transparent) 0%, transparent 62%);
+}
+
+.bg-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Generated art stays a backdrop: dimmed so brand text always wins. */
+  filter: brightness(0.82) saturate(1.05);
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, color-mix(in oklab, var(--bg) 94%, transparent) 0%, color-mix(in oklab, var(--bg) 82%, transparent) 42%, color-mix(in oklab, var(--bg) 30%, transparent) 72%, color-mix(in oklab, var(--bg) 8%, transparent) 100%),
+    linear-gradient(0deg, color-mix(in oklab, var(--bg) 97%, transparent) 0%, color-mix(in oklab, var(--bg) 90%, transparent) 20%, transparent 40%);
+}
+
+.portrait .scrim {
+  background:
+    linear-gradient(0deg, color-mix(in oklab, var(--bg) 96%, transparent) 0%, color-mix(in oklab, var(--bg) 80%, transparent) 55%, color-mix(in oklab, var(--bg) 30%, transparent) 100%);
+}
+
+.has-image .glow,
+.has-image .dots {
+  display: none;
+}
+
+/* ---------- Eyebrow ---------- */
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 36px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: var(--eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+.eyebrow .sq {
+  width: 9px;
+  height: 9px;
+  background: var(--primary);
+  display: inline-block;
+}
+
+.theme-dark .eyebrow .sq {
+  background: var(--accent);
+}
+
+/* ---------- Body (fit region) ---------- */
+
+.body {
+  --s: 1;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Footer ---------- */
+
+.foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 40px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: var(--foot);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.logo {
+  height: calc(var(--foot) * 1.6);
+  width: auto;
+  display: block;
+}
+
+.url {
+  font-family: var(--mono);
+  font-size: calc(var(--foot) * 0.86);
+  letter-spacing: 0.06em;
+  color: var(--soft);
+}
+
+.url::after {
+  content: " ↗";
+  color: var(--hl);
+}

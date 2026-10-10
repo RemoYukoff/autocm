@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>screenshot</title>
+    <link rel="stylesheet" href="/brand.css" />
+    <link rel="stylesheet" href="../_shared/base.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="card" id="card">
+      <section class="body" id="body">
+        <div class="text" id="text">
+          <h1 class="headline" id="headline"></h1>
+          <p class="sub" id="sub"></p>
+        </div>
+        <div class="shot">
+          <div class="frame">
+            <div class="bar">
+              <span class="lights"><i></i><i></i><i></i></span>
+              <span class="addr" id="addr"></span>
+              <span class="spacer"></span>
+            </div>
+            <div class="view"><img id="screen" alt="" /></div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module">
+      import { D, $, frame, segs, finish } from "../_shared/runtime.js";
+      frame();
+      segs($("#headline"), D.headline);
+      if (D.lines.length) segs($("#sub"), D.lines[0]);
+      else $("#sub").remove();
+      $("#addr").textContent = D.brand.host;
+      if (D.screen) $("#screen").src = D.screen;
+      finish(() => [{ name: "text", region: $("#text"), min: 0.4 }]);
+    </script>
+  </body>
+</html>
