@@ -6,7 +6,8 @@
 # Logs: journalctl --user -u autocm -f
 [Unit]
 Description=autocm scheduler + dashboard (autonomous X community manager)
-After=network-online.target
+# Keep restarting even if a half-finished edit makes it crash repeatedly.
+StartLimitIntervalSec=0
 
 [Service]
 WorkingDirectory=%h/repos/autocm
