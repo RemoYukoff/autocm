@@ -3,15 +3,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { BrowserContext, Page } from "playwright-core";
-import { deleteXAccount, getDb, getXAccount, insertMetrics, listXAccounts, markXAccount, nowIso, saveXAccount } from "../core/db/index.ts";
+import { deleteXAccount, getXAccount, nowIso, saveXAccount } from "../core/db/index.ts";
 import { track } from "../core/inflight.ts";
 import { log } from "../core/log.ts";
 import { PRODUCTS_DIR, sessionDir } from "../core/paths.ts";
 import type { XAccount } from "../core/types.ts";
-import { setDefaultXClientFactory, XAuthError, XError } from "../publish/x.ts";
+import { setDefaultXClientFactory, XError } from "../publish/x.ts";
 import { debugScreenshot, hasAuthCookie, withSession, withSlugLock } from "./browser.ts";
 import { BrowserXClient } from "./client.ts";
-import { GraphqlTap, readMetrics, readProfile, requireAuthCookie, sleep, xUrl } from "./ops.ts";
+import { GraphqlTap, readProfile, sleep, xUrl } from "./ops.ts";
 import { AUTH_COOKIE, PATHS, WAIT, X_ORIGIN } from "./selectors.ts";
 
 export { BrowserXClient } from "./client.ts";
@@ -129,66 +129,3 @@ export async function disconnectX(slug: string): Promise<void> {
   );
 }
 
-export interface CollectOptions {
-  origin?: string;
-  /** Pause between post pages (plus up to 50% jitter). Default 4 s. */
-  pauseMs?: number;
-  /** Profile directory per slug; default data/sessions/<slug>/. */
-  profileDir?: (slug: string) => string;
-}
-
-/** collectMetrics with injectable origin/pause (tests). */
-export async function collectMetricsWith(days: number, o: CollectOptions = {}): Promise<number> {
-  const origin = o.origin ?? X_ORIGIN;
-  const pauseMs = o.pauseMs ?? 4000;
-  const since = new Date(Date.now() - days * 86_400_000).toISOString();
-  let updated = 0;
-  for (const account of listXAccounts()) {
-    const slug = account.product;
-    const profileDir = o.profileDir?.(slug) ?? sessionDir(slug);
-    if (!fs.existsSync(profileDir)) continue;
-    const posts = getDb()
-      .prepare(
-        `SELECT id, tweet_id FROM posts WHERE product = ? AND status = 'published' AND tweet_id IS NOT NULL AND published_at >= ?
-         ORDER BY published_at DESC`,
-      )
-      .all(slug, since) as { id: number; tweet_id: string }[];
-    if (!posts.length) continue;
-
-    try {
-      const n = await withSession(slug, { origin, profileDir, headless: true }, async (ctx, page) => {
-        const tap = new GraphqlTap(page);
-        let ok = 0;
-        try {
-          await requireAuthCookie(ctx, origin);
-          for (const [i, p] of posts.entries()) {
-            if (i) await sleep(pauseMs + Math.random() * pauseMs * 0.5);
-            try {
-              insertMetrics(p.id, await readMetrics(page, tap, origin, account.handle, p.tweet_id));
-              ok++;
-            } catch (e) {
-              if (e instanceof XAuthError) throw e;
-              log.warn({ product: slug, post: p.id, err: (e as Error).message }, "x: metrics not read");
-            }
-          }
-        } finally {
-          tap.stop();
-        }
-        return ok;
-      });
-      updated += n;
-      if (n) markXAccount(slug, { ok: true });
-      log.info({ product: slug, updated: n, posts: posts.length }, "x: metrics collected");
-    } catch (e) {
-      const msg = (e as Error).message;
-      if (e instanceof XAuthError) markXAccount(slug, { ok: false, error: msg });
-      log.warn({ product: slug, err: msg }, "x: metrics collection failed");
-    }
-  }
-  return updated;
-}
-
-/** Read fresh metrics for published posts of the last `days` days. Returns how many posts were updated. */
-export async function collectMetrics(days = 7): Promise<number> {
-  return collectMetricsWith(days);
-}

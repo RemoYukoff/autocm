@@ -1,11 +1,11 @@
-// Page-level X operations on an open session: compose and send a post, read the profile, read a post's metrics.
+// Page-level X operations on an open session: compose and send a post, read the profile.
 // Selectors and operation names come from selectors.ts; JSON shapes from graphql.ts.
 import type { BrowserContext, Locator, Page, Response } from "playwright-core";
 import { log } from "../core/log.ts";
-import type { MediaFile, XMetrics, XProfile } from "../core/types.ts";
+import type { MediaFile, XProfile } from "../core/types.ts";
 import { tweetUrl, XAuthError, XError } from "../publish/x.ts";
 import { hasAuthCookie } from "./browser.ts";
-import { findUser, findViewer, parseCreateTweet, parseTweetMetrics } from "./graphql.ts";
+import { findUser, findViewer, parseCreateTweet } from "./graphql.ts";
 import { AUTH_COOKIE, AUTH_WALL_PATHS, GRAPHQL_URL, PATHS, SEL, WAIT } from "./selectors.ts";
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -333,17 +333,3 @@ export async function readProfile(ctx: BrowserContext, page: Page, tap: GraphqlT
   return { handle, name: name ?? known?.name ?? null, avatar_url: avatar ?? known?.avatar_url ?? null };
 }
 
-// ---------- metrics ----------
-
-/** Engagement counts of post `id`, read from the post page's TweetDetail-like response. */
-export async function readMetrics(page: Page, tap: GraphqlTap, origin: string, handle: string | null, id: string): Promise<XMetrics> {
-  tap.clear();
-  await goto(page, xUrl(origin, PATHS.status(handle ?? "i/web", id)));
-  try {
-    return await tap.next((r) => parseTweetMetrics(r.json, id), WAIT.metrics, `metrics of post ${id}`);
-  } catch (e) {
-    assertNotWalled(page);
-    if (await isVisible(page, SEL.loggedOutMarker)) throw new XAuthError(`${LOGGED_OUT} (login prompt shown)`);
-    throw new XError(`X metrics for ${id}: ${(e as Error).message}`, "transient", e);
-  }
-}

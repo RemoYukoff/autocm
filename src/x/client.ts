@@ -2,10 +2,10 @@
 import type { BrowserContext, Page } from "playwright-core";
 import { getXAccount, markXAccount } from "../core/db/index.ts";
 import { log } from "../core/log.ts";
-import type { MediaFile, Product, XMetrics, XProfile } from "../core/types.ts";
+import type { MediaFile, Product, XProfile } from "../core/types.ts";
 import { XAuthError, XError, type XClient } from "../publish/x.ts";
 import { debugScreenshot, withSession } from "./browser.ts";
-import { composeAndPost, GraphqlTap, readMetrics, readProfile, requireAuthCookie } from "./ops.ts";
+import { composeAndPost, GraphqlTap, readProfile } from "./ops.ts";
 import { X_ORIGIN } from "./selectors.ts";
 
 export interface BrowserClientOptions {
@@ -65,12 +65,5 @@ export class BrowserXClient implements XClient {
 
   profile(): Promise<XProfile> {
     return this.run("profile", (ctx, page, tap) => readProfile(ctx, page, tap, this.origin));
-  }
-
-  metrics(tweetId: string): Promise<XMetrics> {
-    return this.run("metrics", async (ctx, page, tap) => {
-      await requireAuthCookie(ctx, this.origin);
-      return readMetrics(page, tap, this.origin, this.handle(), tweetId);
-    });
   }
 }

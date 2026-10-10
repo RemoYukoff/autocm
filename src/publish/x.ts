@@ -1,6 +1,6 @@
 // X client contract. The real client drives the product's logged-in browser profile (src/x/); there is no X API.
 // Tests must inject a fake with setXClientFactory: the real one refuses to run under vitest.
-import type { MediaFile, Product, XMetrics, XProfile } from "../core/types.ts";
+import type { MediaFile, Product, XProfile } from "../core/types.ts";
 
 export type XErrorKind = "auth" | "rate_limit" | "transient" | "permanent";
 
@@ -38,8 +38,6 @@ export interface XClient {
   post(text: string, media: MediaFile[], altText?: string | null): Promise<{ id: string; url: string }>;
   /** Profile of the logged-in account. Throws XAuthError when logged out. */
   profile(): Promise<XProfile>;
-  /** Engagement counts of one of the account's posts. */
-  metrics(tweetId: string): Promise<XMetrics>;
 }
 
 export type XClientFactory = (product: Product) => XClient;

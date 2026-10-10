@@ -117,15 +117,6 @@ export interface XProfile {
   avatar_url: string | null;
 }
 
-export interface XMetrics {
-  likes: number | null;
-  reposts: number | null;
-  replies: number | null;
-  quotes: number | null;
-  bookmarks: number | null;
-  views: number | null;
-}
-
 // ---------- Capabilities ----------
 
 export const Format = z.enum(["text", "image", "video"]);

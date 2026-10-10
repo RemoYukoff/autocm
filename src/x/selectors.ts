@@ -17,7 +17,6 @@ export const PATHS = {
   login: "/login",
   home: "/home",
   compose: "/compose/post",
-  status: (handle: string, id: string) => `/${handle}/status/${id}`,
   profile: (handle: string) => `/${handle}`,
 } as const;
 
@@ -89,7 +88,6 @@ export const WAIT = {
   imageUpload: 90_000,
   videoUpload: 10 * 60_000,
   createTweet: 60_000,
-  metrics: 30_000,
   profile: 30_000,
   login: 10 * 60_000,
 };

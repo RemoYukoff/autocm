@@ -3,7 +3,7 @@ import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { DB_PATH } from "../paths.ts";
-import type { PostRow, PostStatus, XAccount, XMetrics } from "../types.ts";
+import type { PostRow, PostStatus, XAccount } from "../types.ts";
 
 let db: DatabaseSync | null = null;
 
@@ -119,26 +119,4 @@ export function markXAccount(product: string, result: { ok: true } | { ok: false
 
 export function deleteXAccount(product: string): void {
   getDb().prepare("DELETE FROM x_accounts WHERE product = ?").run(product);
-}
-
-// ---------- post metrics ----------
-
-export function insertMetrics(postId: number, m: XMetrics): void {
-  getDb()
-    .prepare("INSERT INTO post_metrics (post_id, likes, reposts, replies, quotes, bookmarks, views) VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(postId, m.likes, m.reposts, m.replies, m.quotes, m.bookmarks, m.views);
-}
-
-/** Latest metrics snapshot per post id. */
-export function latestMetrics(postIds: number[]): Map<number, XMetrics & { ts: string }> {
-  const out = new Map<number, XMetrics & { ts: string }>();
-  if (!postIds.length) return out;
-  const rows = getDb()
-    .prepare(
-      `SELECT m.* FROM post_metrics m JOIN (SELECT post_id, MAX(id) AS id FROM post_metrics WHERE post_id IN (${postIds.map(() => "?").join(",")})
-       GROUP BY post_id) last ON last.id = m.id`,
-    )
-    .all(...postIds) as unknown as (XMetrics & { post_id: number; ts: string })[];
-  for (const { post_id, ...m } of rows) out.set(post_id, m);
-  return out;
 }

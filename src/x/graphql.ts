@@ -1,6 +1,6 @@
 // Pure parsers for the JSON X's web client receives from its own GraphQL API. Matching is by shape, not by
 // operation name, because the names are unverified (see selectors.ts). No I/O here: unit-tested directly.
-import type { XMetrics, XProfile } from "../core/types.ts";
+import type { XProfile } from "../core/types.ts";
 import { GQL_OPS, X_ERROR_CODES } from "./selectors.ts";
 
 type Json = unknown;
@@ -35,15 +35,6 @@ function find(node: Json, pred: (o: Obj, key: string | null) => boolean): Obj | 
 const num = (v: unknown): number | null => {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string" && /^\d+$/.test(v)) return Number(v);
-  return null;
-};
-
-const firstNum = (o: Obj | undefined, keys: string[]): number | null => {
-  if (!o) return null;
-  for (const k of keys) {
-    const n = num(o[k]);
-    if (n !== null) return n;
-  }
   return null;
 };
 
@@ -116,35 +107,6 @@ export function parseCreateTweet(json: Json, url = "", method = "POST"): CreateT
     message: "X answered the post request without a post id (no error given): it was most likely not published",
   };
   return { ok: false, error };
-}
-
-// ---------- tweet metrics ----------
-
-/** The tweet object with this rest_id, if present (unwraps TweetWithVisibilityResults via the walk). */
-export function findTweet(json: Json, id: string): Obj | null {
-  return find(json, (o) => o.rest_id === id && (isObj(o.legacy) || "views" in o || "favorite_count" in o));
-}
-
-export function metricsFromTweet(tweet: Obj): XMetrics {
-  const legacy = isObj(tweet.legacy) ? tweet.legacy : tweet;
-  const counts = isObj(tweet.counts) ? tweet.counts : undefined;
-  const views = isObj(tweet.views) ? tweet.views : undefined;
-  return {
-    likes: firstNum(legacy, ["favorite_count", "like_count"]) ?? firstNum(counts, ["favorite_count", "like_count", "likes"]),
-    reposts: firstNum(legacy, ["retweet_count", "repost_count"]) ?? firstNum(counts, ["retweet_count", "repost_count", "reposts"]),
-    replies: firstNum(legacy, ["reply_count"]) ?? firstNum(counts, ["reply_count", "replies"]),
-    quotes: firstNum(legacy, ["quote_count"]) ?? firstNum(counts, ["quote_count", "quotes"]),
-    bookmarks: firstNum(legacy, ["bookmark_count"]) ?? firstNum(counts, ["bookmark_count", "bookmarks"]),
-    views: firstNum(views, ["count"]) ?? firstNum(counts, ["view_count", "views"]),
-  };
-}
-
-/** Metrics of tweet `id` from a TweetDetail-like response, or null if it is not in there. */
-export function parseTweetMetrics(json: Json, id: string): XMetrics | null {
-  const t = findTweet(json, id);
-  if (!t) return null;
-  const m = metricsFromTweet(t);
-  return m.likes === null && m.reposts === null && m.replies === null && m.views === null ? null : m;
 }
 
 // ---------- users ----------

@@ -72,7 +72,7 @@ list; nothing tracks it afterwards.
 
 ## Connecting X
 
-autocm does not use the X API. Each product posts, reads its profile and reads post metrics through its own
+autocm does not use the X API. Each product posts and reads its profile through its own
 logged-in browser profile in `data/sessions/<slug>/`, driven by Playwright's full Chromium build: headed for
 the login, headless afterwards, with the same user agent in both so X sees one browser.
 
@@ -87,8 +87,7 @@ the login, headless afterwards, with the same user agent in both so X sees one b
 
    The window closes by itself once you are logged in. The handle, display name and avatar are saved (the avatar
    goes to `products/<slug>/assets/x-profile-avatar.<ext>`). Closing the window before logging in cancels.
-2. Check it: `pnpm autocm x whoami <slug>` (service stopped, same reason). `pnpm autocm x metrics -d 7` reads
-   likes, reposts, replies, quotes, bookmarks and views of recent posts; the daemon does this every 6 h.
+2. Check it: `pnpm autocm x whoami <slug>` (service stopped, same reason).
 3. To switch accounts or log out, disconnect from the dashboard: it deletes the profile and the account row.
 
 From then on, posts publish to X on schedule. Until an account is connected, posts are still generated and shown

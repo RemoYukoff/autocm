@@ -11,7 +11,7 @@ import { planSlots, runDaemon, tick } from "./scheduler/index.ts";
 import { DEFAULT_PORT, startDashboard } from "./dashboard/server.ts";
 import { currentTick } from "./scheduler/tick.ts";
 import { inFlight } from "./core/inflight.ts";
-import { collectMetrics, connectX } from "./x/index.ts";
+import { connectX } from "./x/index.ts";
 import { watchSources } from "./core/watch.ts";
 
 const program = new Command().name("autocm").description("Autonomous X community manager");
@@ -132,10 +132,6 @@ x.command("connect <product>")
 x.command("whoami <product>").description("Profile of the product's logged-in X session").action(async (slug: string) => {
   console.log(await xWhoami(loadProduct(slug)));
 });
-x.command("metrics").option("-d, --days <n>", "published within the last n days", "7").description("Refresh post metrics from X").action(async (o: { days: string }) => {
-  console.log(`updated ${await collectMetrics(Number(o.days))} posts`);
-});
-
 program.command("status").description("Mode, pause state, products").action(() => {
   console.log(`llm=${env.llm} paused=${pausedReason() ?? "no"}`);
 });

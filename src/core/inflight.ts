@@ -1,4 +1,4 @@
-// Long-running work the daemon must not be restarted under (browser sessions, metrics scrapes, publishes).
+// Long-running work the daemon must not be restarted under (browser sessions, publishes).
 let count = 0;
 
 /** Count `p` as in flight until it settles. Returns `p`. */
