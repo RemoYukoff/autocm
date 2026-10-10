@@ -52,6 +52,13 @@ export const ProductConfig = z.object({
     windows: z.array(hhmm).min(1),
     daily_cap: z.number().int().min(0).max(20),
     min_gap_min: z.number().int().min(0).default(90),
+    generate_lead_min: z
+      .number()
+      .int()
+      .min(5)
+      .max(1440)
+      .default(180)
+      .describe("Minutes before the slot that the post is generated; this is the window to review or veto it"),
   }),
   brand: z.object({
     colors: z.object({
@@ -177,25 +184,13 @@ export type MediaFile = z.infer<typeof MediaFile>;
 export const MediaResult = z.object({
   kind: MediaKind,
   files: z.array(MediaFile),
-  /** Frames (PNG) for visual QA; for images this is the image itself. */
+  /** PNG previews (dashboard, dry-run): the image itself, or ~5 video frames. */
   preview_frames: z.array(z.string()).default([]),
   /** Set when the requested kind failed and a fallback kind was used. */
   fallback_from: MediaKind.optional(),
   notes: z.array(z.string()).default([]),
 });
 export type MediaResult = z.infer<typeof MediaResult>;
-
-export const QAFix = z.enum(["none", "rewrite_text", "rerender", "new_brief"]);
-export type QAFix = z.infer<typeof QAFix>;
-
-export const QAVerdict = z.object({
-  pass: z.boolean(),
-  score: z.number().min(0).max(10),
-  issues: z.array(z.string()),
-  fix: QAFix,
-  visual_qa: z.enum(["done", "skipped"]).default("skipped"),
-});
-export type QAVerdict = z.infer<typeof QAVerdict>;
 
 export const PostStatus = z.enum([
   "planned",

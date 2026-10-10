@@ -10,7 +10,7 @@ export interface StrategistInput {
   caps: Capabilities;
   history: PostRow[];
   format?: Format;
-  /** Angles rejected as duplicates or by QA; the strategist must pick something different. */
+  /** Angles rejected as duplicates; the strategist must pick something different. */
   avoid?: string[];
   postId?: number;
 }

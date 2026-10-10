@@ -11,7 +11,7 @@ export interface CopywriterInput {
   product: Product;
   brief: Brief;
   history: PostRow[];
-  /** Issues from a previous QA round to fix. */
+  /** Problems with the previous draft to fix (e.g. too long). */
   feedback?: string[];
   previous?: Draft;
   postId?: number;

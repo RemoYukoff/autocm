@@ -1,7 +1,6 @@
-// Single seam to the LLM. Default adapter shells out to `claude -p` so it runs on the
-// user's Claude Code subscription (no API key). Swapping to the Anthropic API means
-// replacing `claudeCliAdapter` only.
-import { spawn } from "node:child_process";
+// Single seam to the LLM. The default adapter uses the Claude Agent SDK, which runs on the
+// user's Claude Code subscription login (no API key needed).
+import { query } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -43,7 +42,7 @@ export class LlmError extends Error {}
 /** Call the LLM and get back a zod-validated object. One retry on failure. */
 export async function callJson<S extends z.ZodType>(schema: S, prompt: string, opts: CallOptions): Promise<z.infer<S>> {
   const jsonSchema = z.toJSONSchema(schema, { target: "draft-7", io: "input" });
-  const adapter = env.llm === "fake" ? fakeAdapter : claudeCliAdapter;
+  const adapter = env.llm === "fake" ? fakeAdapter : sdkAdapter;
   const model = opts.model ?? "sonnet";
   let lastErr: unknown;
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -64,58 +63,52 @@ export async function callJson<S extends z.ZodType>(schema: S, prompt: string, o
   throw lastErr instanceof Error ? lastErr : new LlmError(String(lastErr));
 }
 
-// ---------- claude -p adapter ----------
+// ---------- Agent SDK adapter ----------
 
-const claudeCliAdapter: Adapter = (jsonSchema, prompt, opts) => {
+const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
   const cwd = opts.cwd ?? fs.mkdtempSync(path.join(os.tmpdir(), "autocm-llm-"));
-  const args = [
-    "-p",
-    "--output-format", "json",
-    "--json-schema", JSON.stringify(jsonSchema),
-    "--model", opts.model ?? "sonnet",
-    "--no-session-persistence",
-    // Keep the user's own settings, hooks, CLAUDE.md, plugins and MCP servers out of the prompt.
-    "--setting-sources", "",
-    "--strict-mcp-config",
-    "--system-prompt", opts.system ?? DEFAULT_SYSTEM,
-    "--tools", (opts.tools ?? []).join(","),
-  ];
-  if (opts.tools?.length) args.push("--allowedTools", opts.tools.join(","));
-  for (const d of opts.addDirs ?? []) args.push("--add-dir", d);
-
+  const tools = opts.tools ?? [];
   // Without this, an API key in the environment would win over the subscription login.
-  const childEnv = { ...process.env };
+  const childEnv: Record<string, string | undefined> = { ...process.env };
   delete childEnv.ANTHROPIC_API_KEY;
 
-  return new Promise((resolve, reject) => {
-    const child = spawn("claude", args, { cwd, env: childEnv, stdio: ["pipe", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGTERM");
-      reject(new LlmError(`claude -p timed out after ${opts.timeoutMs ?? 300_000} ms`));
-    }, opts.timeoutMs ?? 300_000);
-    child.stdout.on("data", (d) => (stdout += d));
-    child.stderr.on("data", (d) => (stderr += d));
-    child.on("error", (e) => {
-      clearTimeout(timer);
-      reject(e);
-    });
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      let msg: { is_error?: boolean; subtype?: string; result?: string; structured_output?: unknown; total_cost_usd?: number };
-      try {
-        msg = JSON.parse(stdout);
-      } catch {
-        return reject(new LlmError(`claude -p exited ${code}, unparseable output: ${(stderr || stdout).slice(0, 400)}`));
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), opts.timeoutMs ?? 300_000);
+  try {
+    for await (const msg of query({
+      prompt,
+      options: {
+        cwd,
+        model: opts.model ?? "sonnet",
+        systemPrompt: opts.system ?? DEFAULT_SYSTEM,
+        outputFormat: { type: "json_schema", schema: jsonSchema as Record<string, unknown> },
+        tools,
+        allowedTools: tools,
+        additionalDirectories: opts.addDirs,
+        // Keep the user's own settings, hooks, CLAUDE.md, plugins and MCP servers out of the prompt.
+        settingSources: [],
+        mcpServers: {},
+        strictMcpConfig: true,
+        persistSession: false,
+        maxTurns: tools.length ? 12 : 4,
+        env: childEnv,
+        abortController: abort,
+      },
+    })) {
+      if (msg.type !== "result") continue;
+      if (msg.subtype !== "success" || msg.is_error || msg.structured_output === undefined) {
+        const detail = "result" in msg ? msg.result : "errors" in msg ? JSON.stringify(msg.errors) : "";
+        throw new LlmError(`agent sdk failed (${msg.subtype}): ${String(detail).slice(0, 400)}`);
       }
-      if (msg.is_error || msg.subtype !== "success" || msg.structured_output === undefined) {
-        return reject(new LlmError(`claude -p failed (${msg.subtype}): ${String(msg.result ?? stderr).slice(0, 400)}`));
-      }
-      resolve({ output: msg.structured_output, costUsd: msg.total_cost_usd });
-    });
-    child.stdin.end(prompt);
-  });
+      return { output: msg.structured_output, costUsd: msg.total_cost_usd };
+    }
+    throw new LlmError("agent sdk returned no result");
+  } catch (err) {
+    if (abort.signal.aborted) throw new LlmError(`agent sdk timed out after ${opts.timeoutMs ?? 300_000} ms`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 // ---------- fake adapter (tests, offline dev) ----------

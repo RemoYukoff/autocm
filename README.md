@@ -1,8 +1,8 @@
 # autocm
 
 Autonomous community manager for X. For every product in `products/<slug>/` it plans each post, picks the
-format on its own (text, branded image, or video), writes it, renders the media, runs a strict QA pass and
-publishes on a schedule. No human approval; safety rails instead.
+format on its own (text, branded image, or video), writes it, renders the media and publishes on a schedule.
+No approval needed; a local dashboard lets you watch upcoming posts and veto them.
 
 ## How a post is made
 
@@ -13,12 +13,12 @@ publishes on a schedule. No human approval; safety rails instead.
 4. **Media**: HTML templates rendered with Playwright (statement, comparison, stat, checklist, screenshot),
    Remotion kinetic-typography videos, or real product clips with a title card and end card.
    AI image/video providers are used only when keys are set, with fallback to templates/Remotion.
-5. **Critic**: hard rules (length, banned phrases, links, hashtags, X media limits, ffprobe checks), then a
-   sonnet review that opens the image or video frames. Up to 3 regeneration rounds; otherwise the post is rejected.
+5. **Hard checks**: only what X itself would refuse (≤280 weighted chars, media size/duration/codec).
+   A tweet that is too long is rewritten up to 2 times. There is no LLM review.
 6. **Publisher**: guards (pause, daily caps, min gap, duplicates), then X API v2 or a dry-run preview (`post.md`).
 
-LLM calls run through `claude -p` on your Claude Code subscription (`src/llm.ts`), with your own settings,
-hooks, plugins and MCP servers disabled for those calls.
+LLM calls run through the Claude Agent SDK on your Claude Code subscription (`src/llm.ts`), with your own
+settings, hooks, plugins and MCP servers disabled for those calls.
 
 ## Quick start
 
@@ -31,13 +31,13 @@ pnpm autocm generate acme -f video     # force a format
 pnpm autocm history acme
 ```
 
-Generated artifacts land in `out/<product>/<date>/<postId>/` (brief, draft, media, frames, QA rounds, preview).
+Generated artifacts land in `out/<product>/<date>/<postId>/` (brief, draft, media, frames, preview).
 
 ## Running on a schedule
 
 ```sh
 pnpm autocm plan -d 2    # create posting slots inside each product's windows
-pnpm autocm tick         # one pass: generate due slots (T-45 min), publish due posts
+pnpm autocm tick         # one pass: generate due slots (cadence.generate_lead_min before, default 3 h), publish due posts
 pnpm autocm run          # daemon: tick every 5 min, plan daily
 ```
 
