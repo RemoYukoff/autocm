@@ -11,6 +11,7 @@ import { OUT_DIR, PRODUCTS_DIR, sessionDir } from "../core/paths.ts";
 import type { XAccount } from "../core/types.ts";
 import { draftFromWebsite, normalizeSiteUrl, type ProductDraft } from "../products/prefill.ts";
 import { createProduct, productDir, SLUG_RE, validateCreate } from "../products/write.ts";
+import { planSlots } from "../scheduler/index.ts";
 import { currentTick } from "../scheduler/tick.ts";
 import { connectWithBrowser, connectX, disconnectX } from "../x/index.ts";
 import { ActionError } from "./actions.ts";
@@ -127,6 +128,9 @@ export function startCreate(body: Record<string, unknown>): AccountJob {
       }
       logEvent("product_created", { product: slug, payload: { source: "dashboard", handle: account.handle } });
       log.info({ product: slug, handle: account.handle }, "account added");
+      // Plan today and tomorrow now instead of waiting for the nightly plan; the next tick writes the posts.
+      job.step = "Planning posts";
+      await planSlots(2).catch((e) => log.warn({ product: slug, err: (e as Error).message }, "planning after create failed"));
       return null;
     } catch (e) {
       fs.rmSync(sessionDir(slug), { recursive: true, force: true });

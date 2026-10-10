@@ -273,7 +273,9 @@ function render() {
   reconcile($("#upcoming"), d.upcoming, (s) => `slot-${s.id}`, slotHtml);
   $("#upcoming-empty").hidden = d.upcoming.length > 0;
   const who = state.selected ? state.products.get(state.selected)?.name : null;
-  $("#upcoming-empty").textContent = `Nothing planned${who ? ` for ${who}` : ""}. The scheduler plans each day at 00:05 UTC.`;
+  $("#upcoming-empty").textContent = state.data?.products.length
+    ? `Nothing planned${who ? ` for ${who}` : ""}. The scheduler plans each day at 00:05 UTC.`
+    : "No accounts yet. Add one from the account menu (top left) to start posting.";
   $("#lede-upcoming").textContent = d.paused
     ? "Publishing is paused. Nothing goes out until you resume; posts past their time by more than 3 h are skipped."
     : "Posts publish automatically at their time unless you discard them.";
