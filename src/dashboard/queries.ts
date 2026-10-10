@@ -12,7 +12,7 @@ import { dayRangeUtc } from "../safety/time.ts";
 
 /** Slot statuses the scheduler still acts on. */
 export const ACTIVE_SLOT_STATUSES = ["pending", "claimed", "generated"] as const;
-export const HISTORY_STATUSES: PostStatus[] = ["published", "dry_run", "rejected", "failed", "qa_failed"];
+export const HISTORY_STATUSES: PostStatus[] = ["published", "rejected", "failed", "qa_failed"];
 
 export interface MediaView {
   url: string;
@@ -211,7 +211,7 @@ export function productViews(now = new Date()): ProductView[] {
       timezone: c.timezone,
       daily_cap: c.cadence.daily_cap,
       today_count: countPublishedBetween(today.start, today.end, c.slug),
-      live: env.mode === "live" && p.xCreds !== null,
+      live: p.xCreds !== null,
       enabled: c.enabled,
       color: c.brand.colors.primary,
     };
@@ -219,5 +219,5 @@ export function productViews(now = new Date()): ProductView[] {
 }
 
 export function headerState(now = new Date()) {
-  return { now: now.toISOString(), mode: env.mode, paused: pausedReason(), global_daily_cap: env.globalDailyCap, products: productViews(now) };
+  return { now: now.toISOString(), paused: pausedReason(), global_daily_cap: env.globalDailyCap, products: productViews(now) };
 }

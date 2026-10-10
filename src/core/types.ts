@@ -125,6 +125,7 @@ export interface Capabilities {
   clip: boolean;
   ai_image: boolean;
   ai_video: boolean;
+  /** The product has X credentials, so it can publish. */
   live: boolean;
 }
 
@@ -184,7 +185,7 @@ export type MediaFile = z.infer<typeof MediaFile>;
 export const MediaResult = z.object({
   kind: MediaKind,
   files: z.array(MediaFile),
-  /** PNG previews (dashboard, dry-run): the image itself, or ~5 video frames. */
+  /** PNG previews (dashboard): the image itself, or ~5 video frames. */
   preview_frames: z.array(z.string()).default([]),
   /** Set when the requested kind failed and a fallback kind was used. */
   fallback_from: MediaKind.optional(),
@@ -199,7 +200,6 @@ export const PostStatus = z.enum([
   "approved",
   "publishing",
   "published",
-  "dry_run",
   "rejected",
   "failed",
 ]);
@@ -231,10 +231,8 @@ export interface PostRow {
 }
 
 export interface PublishResult {
-  mode: "live" | "dry_run";
-  tweet_id?: string;
-  url?: string;
-  preview_path?: string;
+  tweet_id: string;
+  url: string;
 }
 
 export interface GuardResult {

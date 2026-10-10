@@ -5,7 +5,6 @@ import { ROOT } from "./paths.ts";
 dotenv.config({ path: path.join(ROOT, ".env"), quiet: true });
 
 export const env = {
-  mode: (process.env.AUTOCM_MODE === "live" ? "live" : "dry_run") as "live" | "dry_run",
   paused: process.env.AUTOCM_PAUSED === "1",
   llm: (process.env.AUTOCM_LLM === "fake" ? "fake" : "claude") as "claude" | "fake",
   globalDailyCap: Number(process.env.AUTOCM_GLOBAL_DAILY_CAP ?? 6),

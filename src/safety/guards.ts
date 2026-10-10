@@ -10,10 +10,8 @@ import { dayRangeUtc } from "./time.ts";
 export const MAX_WEIGHTED_LENGTH = 280;
 const DEDUPE_WINDOW = 200;
 
-/** Statuses that count as "already went out" for caps and min gap. dry_run only counts in dry-run mode. */
-export function countedStatuses(): PostStatus[] {
-  return env.mode === "dry_run" ? ["published", "dry_run"] : ["published"];
-}
+/** Statuses that count as "already went out" for caps and min gap. */
+const COUNTED: PostStatus[] = ["published"];
 
 function marks(n: number): string {
   return Array.from({ length: n }, () => "?").join(",");
@@ -21,7 +19,7 @@ function marks(n: number): string {
 
 /** Posts that went out within [start, end), optionally for one product. */
 export function countPublishedBetween(start: string, end: string, product?: string): number {
-  const statuses = countedStatuses();
+  const statuses = COUNTED;
   const where = product ? "AND product = ?" : "";
   const row = getDb()
     .prepare(
@@ -34,7 +32,7 @@ export function countPublishedBetween(start: string, end: string, product?: stri
 
 /** ISO timestamp of the product's last post that went out, or null. */
 export function lastPublishedAt(product: string): string | null {
-  const statuses = countedStatuses();
+  const statuses = COUNTED;
   const row = getDb()
     .prepare(
       `SELECT MAX(published_at) AS t FROM posts WHERE product = ? AND status IN (${marks(statuses.length)})
@@ -62,6 +60,9 @@ export function checkGuards(product: Product, text: string): GuardResult {
 
   // (b) product enabled
   if (!c.enabled) return { ok: false, reason: `product ${slug} is disabled` };
+
+  // (b2) X credentials: without them there is nowhere to publish; the post waits until they are added
+  if (!product.xCreds) return { ok: false, reason: `no X credentials for ${slug} (add products/${slug}/.env)` };
 
   // (g) length / validity (cheap, checked early)
   if (!text.trim()) return { ok: false, reason: "empty text" };
@@ -92,10 +93,10 @@ export function checkGuards(product: Product, text: string): GuardResult {
     }
   }
 
-  // (f) duplicates vs the product's last 200 posts that went out (published or dry_run)
+  // (f) duplicates vs the product's last 200 posts that went out 
   const history = getDb()
     .prepare(
-      `SELECT id, text, text_hash FROM posts WHERE product = ? AND status IN ('published','dry_run')
+      `SELECT id, text, text_hash FROM posts WHERE product = ? AND status = 'published'
        ORDER BY COALESCE(published_at, created_at) DESC LIMIT ?`,
     )
     .all(slug, DEDUPE_WINDOW) as unknown as Pick<PostRow, "id" | "text" | "text_hash">[];

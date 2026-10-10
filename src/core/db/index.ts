@@ -49,11 +49,11 @@ export function getPost(id: number): PostRow | undefined {
   return getDb().prepare("SELECT * FROM posts WHERE id = ?").get(id) as PostRow | undefined;
 }
 
-/** Most recent posts for a product, newest first. History includes dry_run posts on purpose. */
+/** Most recent posts for a product, newest first. */
 export function recentPosts(
   product: string,
   limit = 30,
-  statuses: PostStatus[] = ["published", "dry_run", "approved", "publishing"],
+  statuses: PostStatus[] = ["published", "approved", "publishing"],
 ): PostRow[] {
   const marks = statuses.map(() => "?").join(",");
   return getDb()

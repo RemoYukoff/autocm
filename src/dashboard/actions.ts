@@ -198,7 +198,7 @@ export function regenerateSlot(slotId: number, format?: Format): Job {
     if (slot.status === "claimed") throw new ActionError(409, `slot #${slotId} is already generating`);
     if (slot.status === "done") throw new ActionError(409, `slot #${slotId} already published`);
     const old = slot.post_id ? getPost(slot.post_id) : undefined;
-    if (old && ["publishing", "published", "dry_run"].includes(old.status)) {
+    if (old && ["publishing", "published"].includes(old.status)) {
       throw new ActionError(409, `post #${old.id} is '${old.status}'; too late to regenerate`);
     }
 
@@ -289,11 +289,11 @@ export async function publishNow(postId: number): Promise<{ post: PostRow; resul
       }
       throw new ActionError(502, `publish failed: ${(e as Error).message}`);
     }
-    logEvent("dashboard_publish", { product: post.product, post_id: postId, payload: { mode: result.mode } });
+    logEvent("dashboard_publish", { product: post.product, post_id: postId, payload: { url: result.url } });
     const slot = slotOfPost(postId);
     if (slot && slot.status !== "done") {
       setSlot(slot.id, "done");
-      slotEvent("slot_done", slot, { mode: result.mode, url: result.url, preview_path: result.preview_path }, postId);
+      slotEvent("slot_done", slot, { url: result.url }, postId);
     }
     return { post: getPost(postId)!, result };
   } finally {

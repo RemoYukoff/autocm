@@ -28,7 +28,7 @@ export async function tick(): Promise<void> {
 
 /** Long-running daemon: tick every 5 minutes, plan daily. */
 export async function runDaemon(): Promise<void> {
-  log.info({ mode: env.mode, paused: pausedReason() ?? "no" }, "autocm daemon starting");
+  log.info({ paused: pausedReason() ?? "no" }, "autocm daemon starting");
   const rec = recover();
   if (rec.slots || rec.posts) log.warn(rec, "startup recovery");
   log.info({ created: await planSlots(2) }, "startup planning done");

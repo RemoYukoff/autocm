@@ -9,7 +9,9 @@ Autonomous X (Twitter) community manager. For each product in `products/<slug>/`
 - Contracts live in `src/core/types.ts`; frozen signatures in the stub modules (`src/media/index.ts`,
   `src/publish/index.ts`, `src/safety/guards.ts`, `src/scheduler/index.ts`, `src/pipeline.ts`).
   Change contracts only on `main`.
-- Never publish to X live during development. `AUTOCM_MODE=dry_run` is the default; live needs explicit OK from the user.
+- There is no dry-run: publishing always goes to X when the product has creds (without them a guard blocks it).
+  Never run `publish`, `generate --publish`, `tick` or "Publish now" yourself against a product with creds;
+  tests mock the X client with `setXClientFactory` (the real client throws under vitest).
 - Never print or commit secrets. Per-product X creds go in `products/<slug>/.env` (gitignored).
 - LLM calls go through `src/llm.ts` only (Claude Agent SDK on the user's subscription). Use `AUTOCM_LLM=fake` in tests.
 - No LLM QA/critic stage: generated posts are approved unless X would refuse them (`src/agents/checks.ts`). The user vetoes from the dashboard.

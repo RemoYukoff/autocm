@@ -1,13 +1,11 @@
 // Stream C (publish/ops). Signatures of publishPost / xWhoami are frozen (contracts-v1).
-import path from "node:path";
-import { capabilitiesFor } from "../core/config.ts";
 import { getDb, getFlag, getPost, logEvent, nowIso, setFlag, updatePost } from "../core/db/index.ts";
 import { log } from "../core/log.ts";
 import type { PostRow, Product, PublishResult } from "../core/types.ts";
 import { checkGuards } from "../safety/guards.ts";
 import { pause } from "../safety/pause.ts";
 import { textHash } from "../safety/text.ts";
-import { postMediaFiles, writeDryRunPreview } from "./dryrun.ts";
+import { postMediaFiles } from "./media.ts";
 import { getXClient, mapXError, type XError, type XErrorKind } from "./x.ts";
 
 export { XAuthError, XError } from "./x.ts";
@@ -80,10 +78,10 @@ function markPublished(post: PostRow, tweet: { id: string; url: string }): Publi
   setFlag(FAILURES_FLAG, "0");
   logEvent("published", { product: post.product, post_id: post.id, payload: { tweet_id: tweet.id, url: tweet.url } });
   log.info({ product: post.product, post: post.id, url: tweet.url }, "published");
-  return { mode: "live", tweet_id: tweet.id, url: tweet.url };
+  return { tweet_id: tweet.id, url: tweet.url };
 }
 
-/** Run guards, then publish to X (live) or write a dry-run preview. Updates the post row. */
+/** Run guards, then publish to X. Updates the post row. */
 export async function publishPost(post: PostRow, product: Product): Promise<PublishResult> {
   const slug = product.config.slug;
   const current = getPost(post.id) ?? post; // always act on the DB state, not a possibly stale row
@@ -115,21 +113,6 @@ export async function publishPost(post: PostRow, product: Product): Promise<Publ
     throw new GuardError(current.id, reason);
   }
 
-  // ---------- dry run ----------
-  if (!capabilitiesFor(product).live) {
-    const preview = writeDryRunPreview(current, product);
-    updatePost(current.id, {
-      status: "dry_run",
-      published_at: nowIso(),
-      error: null,
-      out_dir: current.out_dir ?? path.dirname(preview),
-    });
-    logEvent("published_dry_run", { ...ctx, payload: { preview_path: preview } });
-    log.info({ ...ctx, preview }, "dry-run publish: preview written");
-    return { mode: "dry_run", preview_path: preview };
-  }
-
-  // ---------- live ----------
   const claim = getDb()
     .prepare("UPDATE posts SET status = 'publishing', attempts = attempts + 1, error = NULL, updated_at = ? WHERE id = ? AND status = 'approved'")
     .run(nowIso(), current.id);

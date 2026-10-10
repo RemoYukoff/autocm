@@ -193,6 +193,8 @@ const defaultFactory: XClientFactory = (product) => {
 let factory: XClientFactory = defaultFactory;
 
 export function getXClient(product: Product): XClient {
+  // Tests must never reach the real X API.
+  if (process.env.VITEST && factory === defaultFactory) throw new Error("tests must mock the X client (setXClientFactory)");
   return factory(product);
 }
 

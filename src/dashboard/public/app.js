@@ -244,7 +244,6 @@ function readyHtml(post) {
 
 const HISTORY_STATUS = {
   published: ["Live on X", "go"],
-  dry_run: ["Dry run", "neutral"],
   rejected: ["Discarded", "stop"],
   failed: ["Failed", "stop"],
   qa_failed: ["Failed QA", "stop"],
@@ -254,7 +253,7 @@ function historyHtml(post) {
   const [label, tone] = HISTORY_STATUS[post.status] ?? [post.status, "neutral"];
   const when = post.published_at ?? post.updated_at;
   const link = post.url && post.status === "published" ? `<a class="btn" href="${esc(post.url)}" target="_blank" rel="noopener noreferrer">Open on X</a>` : "";
-  const err = post.error && post.status !== "published" && post.status !== "dry_run" ? `<p class="${post.status === "rejected" ? "note" : "warn"}">${esc(post.error)}</p>` : "";
+  const err = post.error && post.status !== "published" ? `<p class="${post.status === "rejected" ? "note" : "warn"}">${esc(post.error)}</p>` : "";
   return `<div class="row" data-key="hist-${post.id}">
     <div class="row-main">${post.text || post.media.length ? tweetCard(post, { ago: when }) : `<div class="placeholder"><p class="muted">No content was produced.</p></div>`}</div>
     <aside class="slot-side">
@@ -301,7 +300,10 @@ function reconcile(container, items, keyOf, html) {
 // ---------- render ----------
 
 function renderHeader(d) {
-  const mode = d.mode === "live" ? `<span class="pill pill-live">Live</span>` : `<span class="pill pill-neutral">Dry run</span>`;
+  const noCreds = d.products.filter((p) => p.enabled && !p.live).map((p) => p.name);
+  const mode = noCreds.length
+    ? `<span class="pill pill-stop" title="Add X credentials in products/<slug>/.env">No X credentials: ${esc(noCreds.join(", "))}</span>`
+    : "";
   const paused = d.paused
     ? `<span class="pill pill-stop">Paused</span><span class="muted small" title="${esc(d.paused)}">${esc(d.paused)}</span>`
     : `<span class="pill pill-go">Publishing on</span>`;
@@ -315,7 +317,7 @@ function renderHeader(d) {
   $("#quotas").innerHTML = d.products
     .map((p) => {
       const pct = p.daily_cap ? Math.min(100, (p.today_count / p.daily_cap) * 100) : 100;
-      const live = p.live ? "live" : "dry run";
+      const live = p.live ? "connected to X" : "no X credentials";
       return `<div class="quota${p.enabled ? "" : " off"}" title="${esc(p.name)}: ${p.today_count} of ${p.daily_cap} posts today (${esc(p.timezone)}), ${live}">
         <span class="quota-name">${esc(p.name)}</span>
         <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>
@@ -434,15 +436,13 @@ document.addEventListener("click", (ev) => {
   if (!b) return;
   const id = Number(b.dataset.id);
   const action = b.dataset.action;
-  const live = state.data?.mode === "live";
   if (action === "discard") {
     const inSlot = state.data?.upcoming.some((s) => s.post?.id === id);
     if (!confirm(`Discard post #${id}? It will not be published${inSlot ? " and its slot will be skipped" : ""}.`)) return;
     run(`discard:${id}`, () => api("POST", `/api/posts/${id}/discard`), `Discarded post #${id}.`);
   } else if (action === "publish") {
-    const where = live ? "to X now, for real" : "now (dry run: writes a preview, nothing goes to X)";
-    if (!confirm(`Publish post #${id} ${where}?`)) return;
-    run(`publish:${id}`, () => api("POST", `/api/posts/${id}/publish`), (r) => (r.result.mode === "live" ? `Published: ${r.result.url}` : `Dry run done for post #${id}.`));
+    if (!confirm(`Publish post #${id} to X now?`)) return;
+    run(`publish:${id}`, () => api("POST", `/api/posts/${id}/publish`), (r) => `Published: ${r.result.url}`);
   } else if (action === "regenerate") {
     const slot = state.data?.upcoming.find((s) => s.id === id);
     const replaces = slot?.post && slot.post.status === "approved";

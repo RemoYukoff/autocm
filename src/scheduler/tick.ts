@@ -161,7 +161,7 @@ async function publishDue(token: string): Promise<void> {
       slotEvent("slot_failed", slot, { reason: "slot has no post" });
       continue;
     }
-    if (post.status === "published" || post.status === "dry_run") {
+    if (post.status === "published") {
       setSlot(slot.id, "done");
       continue;
     }
@@ -182,7 +182,7 @@ async function publishDue(token: string): Promise<void> {
       const product = loadProduct(slot.product);
       const res = await publishPost(post, product);
       setSlot(slot.id, "done");
-      slotEvent("slot_done", slot, { mode: res.mode, url: res.url, preview_path: res.preview_path }, post.id);
+      slotEvent("slot_done", slot, { url: res.url }, post.id);
     } catch (e) {
       if (e instanceof GuardError) {
         // Paused, cap, min gap, duplicate: leave the slot 'generated' and try again next tick until 3 h overdue.

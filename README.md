@@ -15,7 +15,7 @@ No approval needed; a local dashboard lets you watch upcoming posts and veto the
    AI image/video providers are used only when keys are set, with fallback to templates/Remotion.
 5. **Hard checks**: only what X itself would refuse (≤280 weighted chars, media size/duration/codec).
    A tweet that is too long is rewritten up to 2 times. There is no LLM review.
-6. **Publisher**: guards (pause, daily caps, min gap, duplicates), then X API v2 or a dry-run preview (`post.md`).
+6. **Publisher**: guards (pause, daily caps, min gap, duplicates), X credentials, then X API v2. There is no dry-run: every publish goes to X.
 
 LLM calls run through the Claude Agent SDK on your Claude Code subscription (`src/llm.ts`), with your own
 settings, hooks, plugins and MCP servers disabled for those calls.
@@ -24,7 +24,7 @@ settings, hooks, plugins and MCP servers disabled for those calls.
 
 ```sh
 pnpm install
-cp .env.example .env                     # AUTOCM_MODE=dry_run by default
+cp .env.example .env
 pnpm autocm products validate
 pnpm autocm generate acme              # one post, format chosen by the strategist
 pnpm autocm generate acme -f video     # force a format
@@ -71,11 +71,13 @@ history. Actions: discard (veto), skip a slot, regenerate (optionally forcing a 
 still apply), generate a new post, pause/resume. Without a veto, posts publish on schedule. Posts are generated
 `cadence.generate_lead_min` (default 180) minutes before their slot, which is the review window.
 
-## Going live on X
+## Connecting X
 
 1. Create an app at developer.x.com with Read and Write permissions, and generate OAuth 1.0a user tokens for the product's account.
 2. Put them in `products/<slug>/.env` (see `products/.env.example`). Check with `pnpm autocm x whoami <slug>`.
-3. Set `AUTOCM_MODE=live` in `.env`. Without both, everything stays dry-run.
+
+From then on, posts publish to X on schedule. Until the credentials exist, posts are still generated and shown in
+the dashboard, but publishing is blocked by a guard (`no X credentials`); a blocked slot is skipped after 3 h.
 
 ## Safety rails
 

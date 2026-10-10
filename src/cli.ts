@@ -51,7 +51,7 @@ program
   .command("generate <product>")
   .description("Generate one post (strategist decides format unless --format). Does not publish unless --publish")
   .option("-f, --format <format>", "text | image | video")
-  .option("--publish", "publish right after generation (dry-run unless AUTOCM_MODE=live)")
+  .option("--publish", "publish to X right after generation")
   .action(async (slug: string, o: { format?: string; publish?: boolean }) => {
     const format = o.format ? Format.parse(o.format) : undefined;
     const post = await generatePost(slug, { format });
@@ -137,7 +137,7 @@ program.command("resume").description("Resume publishing").action(() => {
 });
 
 program.command("history <product>").option("-n <n>", "how many", "20").action((slug: string, o: { n: string }) => {
-  const rows = recentPosts(slug, Number(o.n), ["published", "dry_run", "approved", "rejected", "failed", "qa_failed", "generating", "publishing"]);
+  const rows = recentPosts(slug, Number(o.n), ["published", "approved", "rejected", "failed", "qa_failed", "generating", "publishing"]);
   for (const r of rows) {
     console.log(`#${r.id} ${r.status.padEnd(9)} ${(r.format ?? "-").padEnd(5)} ${(r.media_kind ?? "-").padEnd(8)} ${r.pillar ?? "-"} | ${(r.text ?? r.error ?? "").replace(/\s+/g, " ").slice(0, 90)}`);
   }
@@ -157,7 +157,7 @@ program.command("x <action> [product]").description("X utilities: whoami").actio
 });
 
 program.command("status").description("Mode, pause state, products").action(() => {
-  console.log(`mode=${env.mode} llm=${env.llm} paused=${pausedReason() ?? "no"}`);
+  console.log(`llm=${env.llm} paused=${pausedReason() ?? "no"}`);
 });
 
 program.parseAsync().catch((e: Error) => {

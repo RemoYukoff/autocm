@@ -76,6 +76,6 @@ export function capabilitiesFor(product: Product): Capabilities {
     clip: product.config.assets.clips.length > 0,
     ai_image: Boolean(env.openaiKey || env.geminiKey || env.falKey),
     ai_video: Boolean(env.falKey) && env.aiVideo,
-    live: env.mode === "live" && product.xCreds !== null,
+    live: product.xCreds !== null,
   };
 }
