@@ -27,7 +27,6 @@ pnpm install
 cp .env.example .env
 pnpm autocm products validate
 pnpm autocm run --dashboard              # plan, write and publish on schedule; veto at http://127.0.0.1:4321
-pnpm autocm history acme
 ```
 
 Generated artifacts land in `out/<product>/<date>/<postId>/` (brief, draft, media, frames, preview).
@@ -69,7 +68,7 @@ Shows only what the bot is about to publish: each planned slot with an X-style p
 or video). Every day the scheduler picks how many posts to make (`cadence.posts_per_day_min` to `posts_per_day_max`)
 and when, and writes them right away, so they are visible hours before they go out. The only actions are
 discard (veto) and pause/resume. Without a veto, posts publish on schedule. Once published, a post leaves the
-list (`pnpm autocm history` lists past posts).
+list; nothing tracks it afterwards.
 
 ## Connecting X
 

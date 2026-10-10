@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 import { Command } from "commander";
 import { capabilitiesFor, listProductSlugs, loadProduct, validateProductFiles } from "./core/config.ts";
-import { getDb, recentPosts } from "./core/db/index.ts";
+import { getDb } from "./core/db/index.ts";
 import { env } from "./core/env.ts";
 import { log } from "./core/log.ts";
 import { renderFixture } from "./media/index.ts";
@@ -111,13 +111,6 @@ program.command("pause [reason...]").description("Stop all publishing").action((
 program.command("resume").description("Resume publishing").action(() => {
   resume();
   console.log(pausedReason() ? `still paused: ${pausedReason()}` : "resumed");
-});
-
-program.command("history <product>").option("-n <n>", "how many", "20").action((slug: string, o: { n: string }) => {
-  const rows = recentPosts(slug, Number(o.n), ["published", "approved", "rejected", "failed", "generating", "publishing"]);
-  for (const r of rows) {
-    console.log(`#${r.id} ${r.status.padEnd(9)} ${(r.format ?? "-").padEnd(5)} ${(r.media_kind ?? "-").padEnd(8)} ${r.pillar ?? "-"} | ${(r.text ?? r.error ?? "").replace(/\s+/g, " ").slice(0, 90)}`);
-  }
 });
 
 program

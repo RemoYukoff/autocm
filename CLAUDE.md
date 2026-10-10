@@ -26,7 +26,7 @@ TypeScript on Node 24 (ESM, run with `tsx`, no build), pnpm, `node:sqlite`, zod 
 Remotion 4, ffmpeg/ffprobe (system), node-cron, pino, vitest.
 
 ## Commands
-- `pnpm autocm <cmd>` — CLI (`src/cli.ts`): init-db, products list|validate, plan, tick, run [--dashboard] [--watch], dashboard, pause, resume, history, render-fixture, x connect|whoami|metrics, status.
+- `pnpm autocm <cmd>` — CLI (`src/cli.ts`): init-db, products list|validate, plan, tick, run [--dashboard] [--watch], dashboard, pause, resume, render-fixture, x connect|whoami|metrics, status.
 - Each day the scheduler draws `cadence.posts_per_day_min..max` slots and the next tick writes them all; they publish at their time.
   The dashboard only shows what is about to publish (Up next) with Discard (veto) and Pause/Resume.
 - The app runs always-on as systemd user service `autocm` (`deploy/autocm.service`, symlinked) with `run --dashboard --watch`
