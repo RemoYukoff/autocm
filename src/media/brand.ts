@@ -26,7 +26,7 @@ export interface Brand {
   monoStack: string;
   /** Font files to register (product fonts first, bundled Geist fallback last). */
   fonts: FontFile[];
-  /** Product-provided fonts.css (absolute path), used as-is instead of generated @font-face for product files. */
+  /** Product-provided fonts.css (absolute path), imported by templates in addition to generated @font-face rules. */
   fontsCss: string | null;
   /** data: URI of the logo, recolored for the theme when it is an SVG with a dark-scheme block. */
   logo: string | null;
@@ -103,12 +103,11 @@ export function resolveBrand(product: Product, theme: Theme = "dark"): Brand {
   const fonts: FontFile[] = [];
   const cssPath = path.join(product.dir, "assets", "fonts", "fonts.css");
   const fontsCss = fs.existsSync(cssPath) ? cssPath : null;
-  if (!fontsCss) {
-    for (const rel of c.brand.fonts.files) {
-      const abs = productPath(product, rel);
-      if (fs.existsSync(abs)) fonts.push(fontFaceFromFile(abs, sans, mono));
-      else notes.push(`font file missing: ${rel}`);
-    }
+  // Listed files are always registered (Remotion only sees these); templates additionally @import fonts.css.
+  for (const rel of c.brand.fonts.files) {
+    const abs = productPath(product, rel);
+    if (fs.existsSync(abs)) fonts.push(fontFaceFromFile(abs, sans, mono));
+    else notes.push(`font file missing: ${rel}`);
   }
   if (!fontsCss && fonts.length === 0) notes.push(`no ${sans} font files in product; using bundled fallback`);
   fonts.push(...bundledFallbackFonts());

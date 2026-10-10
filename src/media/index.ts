@@ -27,6 +27,11 @@ async function templateMedia(templateId: TemplateId, copy: MediaCopy, brief: Bri
       id = "statement";
     }
   }
+  const rowsNeeded = id === "comparison" || id === "checklist";
+  if (rowsNeeded && !(copy.lines ?? []).some((l) => l.trim())) {
+    notes.push(`${id} template has no lines; rendered statement template instead`);
+    id = "statement";
+  }
   const t0 = Date.now();
   const out = await renderTemplate({ templateId: id, copy, product, screen, background: extra.background }, path.join(outDir, "image.png"));
   notes.push(...out.notes.filter((n) => !n.startsWith("no ")), `template:${id} ${out.file.width}x${out.file.height} rendered in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

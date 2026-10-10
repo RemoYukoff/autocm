@@ -34,10 +34,16 @@ export function getBundle(): Promise<string> {
   bundlePromise ??= bundle({
     entryPoint: path.join(REMOTION_DIR, "src", "index.ts"),
     onProgress: () => {},
-  }).catch((e) => {
-    bundlePromise = null;
-    throw e;
-  });
+  })
+    .then((dir) => {
+      // Each process bundles into a fresh temp dir (webpack's cache keeps it fast); remove it on exit.
+      process.once("exit", () => fs.rmSync(dir, { recursive: true, force: true }));
+      return dir;
+    })
+    .catch((e) => {
+      bundlePromise = null;
+      throw e;
+    });
   return bundlePromise;
 }
 
@@ -156,7 +162,8 @@ export async function renderClipCaption(
   const endCard = 2.4;
   const start = Math.min(Math.max(0, trim.start ?? 0), Math.max(0, src.duration - 0.5));
   const end = Math.min(src.duration, trim.end ?? src.duration);
-  const duration = Math.max(0.5, Math.min(end - start, MAX_VIDEO_SECONDS - endCard - 0.5));
+  // Stop ~0.15 s short of the source end: the crossfade into the end card overlaps a few frames.
+  const duration = Math.max(0.5, Math.min(end - start - 0.15, MAX_VIDEO_SECONDS - endCard - 0.5));
   // Landscape sources keep 16:9, everything else renders square.
   const size: VideoSize = src.width >= src.height * 1.3 ? "landscape" : "square";
   const { w, h } = VIDEO_SIZES[size];
