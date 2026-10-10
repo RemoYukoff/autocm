@@ -24,7 +24,7 @@ const MEDIA_COPY_GUIDE: Record<string, string> = {
   checklist: "headline: list title (max ~7 words). lines: 3-6 items, each max ~8 words.",
   screenshot: "headline: one line describing what the screenshot shows and why it matters (max ~10 words). lines: 0-1 caption.",
   remotion: "headline: the opening beat (max ~8 words). lines: 3-5 following beats, each max ~8 words, telling a mini story: problem → turn → payoff. The last beat can be the product url.",
-  clip: "headline: caption shown over the clip (max ~8 words). lines: optional 1-2 extra beats.",
+  clip: "headline: title card shown for ~2 s before the clip plays (max ~8 words). The clip already shows its own on-screen headline (see the clip description): never repeat it; add context the clip does not say (who it is for, why it matters). lines: leave empty.",
   ai_image: "headline: one bold line shown over the illustration (max ~10 words).",
   ai_video: "headline: caption shown over the clip (max ~8 words).",
 };

@@ -39,6 +39,7 @@ const clipDefaults: ClipCaptionProps = {
   brand: demoBrand,
   clip: { src: "clip.mp4", trimBefore: 0, duration: 4 },
   headline: [{ text: "Caption", hl: true }],
+  intro: 1.8,
   endCard: 2.4,
   total: 6.4,
 };

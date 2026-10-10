@@ -3,57 +3,45 @@ import { AbsoluteFill, interpolate, OffthreadVideo, Sequence, staticFile, useCur
 import { Backdrop, BrandChip, EndCard, fitWords, FontGate, KineticWords, mix, type TypeStyle } from "./brand.tsx";
 import type { ClipCaptionProps } from "./types.ts";
 
-/** Product clip, full bleed, with an animated caption panel and the brand end card. */
-const Body: React.FC<ClipCaptionProps> = ({ brand, clip, headline, endCard }) => {
+/**
+ * Title card with the headline, then the product clip full bleed and unobstructed (product clips carry
+ * their own on-screen UI and text, so nothing is overlaid on them), then the brand end card.
+ */
+const Body: React.FC<ClipCaptionProps> = ({ brand, clip, headline, intro, endCard }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const u = Math.min(width, height);
+  const introFrames = Math.round(intro * fps);
   const clipFrames = Math.max(1, Math.round(clip.duration * fps));
-  const pad = Math.round(u * 0.06);
+  const pad = Math.round(u * 0.09);
   const type: TypeStyle = { fontFamily: brand.sans, fontWeight: 600, letterSpacing: "-0.04em" };
   const lineHeight = 1.06;
-  const panelW = Math.round(width > height ? width * 0.5 : width - pad * 2);
-  const innerPad = Math.round(u * 0.035);
   const layout = useMemo(
-    () => fitWords(headline, { width: panelW - innerPad * 2, height: u * 0.24 }, type, { max: Math.round(u * 0.068), min: Math.round(u * 0.032), lineHeight }),
+    () => fitWords(headline, { width: width - pad * 2, height: height * 0.5 }, type, { max: Math.round(u * 0.11), min: Math.round(u * 0.045), lineHeight }),
     // Fonts are loaded before Body mounts (FontGate).
-    [headline, panelW, innerPad, u],
+    [headline, width, height, pad, u],
   );
 
-  const capIn = Math.round(fps * 0.4);
-  const capOut = clipFrames - Math.round(fps * 0.35);
-  const panel = interpolate(frame, [capIn - 6, capIn + 6, capOut, capOut + 8], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const fadeToCard = interpolate(frame, [clipFrames - 8, clipFrames + 4], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const titleOut = interpolate(frame, [introFrames - 8, introFrames + 2], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const clipIn = interpolate(frame, [introFrames - 6, introFrames + 4], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const clipEnd = introFrames + clipFrames;
+  const fadeToCard = interpolate(frame, [clipEnd - 8, clipEnd + 4], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
 
   return (
     <AbsoluteFill>
       <Backdrop brand={brand} />
-      <Sequence durationInFrames={clipFrames + 4} layout="none">
-        <AbsoluteFill style={{ opacity: fadeToCard }}>
-          <OffthreadVideo src={staticFile(clip.src)} trimBefore={Math.round(clip.trimBefore * fps)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          <AbsoluteFill style={{ background: `linear-gradient(0deg, ${mix(brand.colors.bg, 78)} 0%, transparent 46%)` }} />
-          <div
-            style={{
-              position: "absolute",
-              left: pad,
-              bottom: pad,
-              width: panelW,
-              padding: innerPad,
-              borderRadius: Math.round(u * 0.022),
-              background: mix(brand.colors.bg, 82),
-              border: `1px solid ${mix(brand.colors.fg, 14)}`,
-              boxShadow: `0 30px 80px -20px rgba(0,0,0,0.6)`,
-              backdropFilter: "blur(18px)",
-              opacity: panel,
-              transform: `translateY(${(1 - panel) * 24}px)`,
-            }}
-          >
-            <BrandChip brand={brand} size={Math.round(u * 0.02)} style={{ marginBottom: Math.round(u * 0.022), color: mix(brand.colors.fg, 80, brand.colors.bg) }} />
-            <KineticWords brand={brand} lines={layout.lines} fontSize={layout.fontSize} lineHeight={lineHeight} type={type} frame={frame - capIn} exitAt={null} />
-          </div>
+      <Sequence durationInFrames={introFrames + 2} layout="none">
+        <AbsoluteFill style={{ opacity: titleOut, padding: pad, justifyContent: "center" }}>
+          <BrandChip brand={brand} size={Math.round(u * 0.026)} style={{ marginBottom: Math.round(u * 0.04), color: mix(brand.colors.fg, 80, brand.colors.bg) }} />
+          <KineticWords brand={brand} lines={layout.lines} fontSize={layout.fontSize} lineHeight={lineHeight} type={type} frame={frame} exitAt={null} />
         </AbsoluteFill>
       </Sequence>
-      <Sequence from={clipFrames} durationInFrames={Math.round(endCard * fps)} layout="none">
+      <Sequence from={introFrames - 6} durationInFrames={clipFrames + 10} layout="none">
+        <AbsoluteFill style={{ opacity: Math.min(clipIn, fadeToCard) }}>
+          <OffthreadVideo src={staticFile(clip.src)} trimBefore={Math.round(clip.trimBefore * fps)} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        </AbsoluteFill>
+      </Sequence>
+      <Sequence from={clipEnd} durationInFrames={Math.round(endCard * fps)} layout="none">
         <EndCardAt brand={brand} />
       </Sequence>
     </AbsoluteFill>

@@ -105,7 +105,7 @@ ${visual ? `\nOpen and inspect each of these ${brief.format === "video" ? "video
 - Voice rules followed? Claims supported by the knowledge base (no invented numbers/customers)?
 - Not repetitive versus recent posts? Reusing a line verbatim from the example posts or knowledge base is a fail (fix rewrite_text).
 - Clear and specific, not generic marketing filler?
-${visual ? "- Visual quality as described above." : ""}
+${visual ? "- Visual quality as described above. The product url in the visual's footer or end card is brand chrome, not a link: never flag it." : ""}
 Score ${PASS_SCORE}+ only if you would publish it as is.`,
     {
       stage: "critic",
