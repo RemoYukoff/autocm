@@ -93,22 +93,14 @@ autocm does not use the X API. Each product posts and reads its profile through 
 logged-in browser profile in `data/sessions/<slug>/`, driven by Playwright's full Chromium build: headed for
 the login, headless afterwards, with the same user agent in both so X sees one browser.
 
-1. Connect the account, either from the dashboard or from the CLI **with the service stopped** (a browser profile
-   can only be open in one process, and the daemon uses it):
-
-   ```sh
-   systemctl --user stop autocm
-   pnpm autocm x connect <slug>    # a Chromium window opens at x.com/login: log in (2FA is fine) within 10 min
-   systemctl --user start autocm
-   ```
-
-   The window closes by itself once you are logged in. The handle, display name and avatar are saved (the avatar
-   goes to `products/<slug>/assets/x-profile-avatar.<ext>`). Closing the window before logging in cancels.
-2. Check it: `pnpm autocm x whoami <slug>` (service stopped, same reason).
-3. To switch accounts or log out, disconnect from the dashboard: it deletes the profile and the account row.
-
-From then on, posts publish to X on schedule. Until an account is connected, posts are still generated and shown
-in the dashboard, but publishing is blocked by a guard (`X not connected`); a blocked slot is skipped after 3 h.
+1. **+ Add account** in the dashboard: fill the form (or "Fill from website"), then **Create account and log in to X**.
+   A Chromium window opens at x.com/login; log in (2FA is fine) within 10 min and it closes by itself. Only then is
+   the product written, with the handle, display name and avatar (`products/<slug>/assets/x-profile-avatar.<ext>`).
+   Closing the window cancels and leaves nothing behind.
+2. If a session breaks (logged out, locked), the account shows **Reconnect**. From the CLI, with the service stopped
+   (a browser profile can only be open in one process): `pnpm autocm x connect <slug>`, and `pnpm autocm x whoami <slug>`
+   to check it.
+3. **Delete account** removes the product folder, its X session, generated files and every planned post.
 
 - `data/sessions/` holds the X session cookies. It is gitignored: never commit, copy or share it.
 - A logged-out, locked or challenged session pauses publishing and shows the error on the account; reconnect.
@@ -127,7 +119,7 @@ in the dashboard, but publishing is blocked by a guard (`X not connected`); a bl
 
 ## Adding a product
 
-See `products/README.md`. A product is a folder: `product.yaml`, `knowledge/*.md`, `assets/`. Its X account is connected through the browser (see "Connecting X").
+Only from the dashboard (**+ Add account**), which also logs in to X (see "Connecting X"). `products/README.md` documents the folder it writes.
 
 ## Development
 
