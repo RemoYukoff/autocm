@@ -71,6 +71,23 @@ and when, and writes them right away, so they are visible hours before they go o
 discard (veto) and pause/resume. Without a veto, posts publish on schedule. Once published, a post leaves the
 list (`pnpm autocm history` lists past posts).
 
+### Accounts
+
+The account menu in the header switches between **All accounts** and one product (Up next and the quotas follow
+the choice, remembered per browser). From it:
+
+- **+ Add account** opens a form with every `product.yaml` field (voice, pillars, format mix, cadence and windows,
+  brand colors, fonts, logo, links), the knowledge files, and optional screenshots and clips with descriptions.
+  **Fill from website** reads the homepage and up to 4 relevant pages (pricing, features, about, docs) in headless
+  Chromium, picks the logo and brand colors from the rendered page, and asks the LLM (stage `product-draft`) for a
+  draft plus `knowledge/00-overview.md` ending in "Facts you must not claim". Nothing is written until you press
+  Create account. New products get Geist fonts copied into `assets/fonts/`.
+- **Edit** opens the same form for an existing product (the slug cannot change). Saving validates against
+  `ProductConfig`, shows errors next to the fields, and only rewrites what changed in `product.yaml`, so comments
+  on untouched parts survive.
+- **Connect X** / **Reconnect** opens a visible browser window on this computer where you log in to the product's
+  X account; the menu then shows its avatar and @handle. **Disconnect** deletes the session.
+
 ## Connecting X
 
 autocm does not use the X API. Each product posts, reads its profile and reads post metrics through its own

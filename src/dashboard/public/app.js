@@ -1,9 +1,11 @@
 // autocm dashboard: vanilla JS, no build step.
+import { createAccounts, loadSelected } from "/account.js";
+
 const REFRESH_MS = 15_000;
 const FAST_REFRESH_MS = 3_000;
 
 const $ = (sel) => document.querySelector(sel);
-const state = { data: null, busy: new Set(), products: new Map() };
+const state = { data: null, busy: new Set(), products: new Map(), selected: loadSelected() };
 const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const LOCALE = "en-GB"; // the UI copy is English; keep dates in English too
 
@@ -93,6 +95,8 @@ function toast(msg, kind = "info") {
 
 // ---------- pieces ----------
 
+const accounts = createAccounts({ $, esc, api: (...a) => api(...a), toast: (...a) => toast(...a), refresh: () => refresh(), state });
+
 function product(slug) {
   return state.products.get(slug) ?? { slug, name: slug, handle: null, timezone: "UTC", color: "#8b95a3" };
 }
@@ -114,11 +118,10 @@ function mediaHtml(post) {
 /** `when`: the scheduled time label shown after the handle. */
 function tweetCard(post, when) {
   const p = product(post.product);
-  const initial = (p.name || p.slug).trim().charAt(0).toUpperCase();
   const handle = p.handle ? `@${p.handle}` : `@${p.slug}`;
   const text = post.text ? `<div class="tw-text">${tweetHtml(post.text)}</div>` : `<div class="tw-text tw-empty">No text yet.</div>`;
   return `<article class="tw" aria-label="Post preview">
-    <div class="tw-avatar" style="--av:${esc(p.color)}" aria-hidden="true">${esc(initial)}</div>
+    ${accounts.avatarHtml(p, "tw-avatar")}
     <div class="tw-body">
       <div class="tw-head"><span class="tw-name">${esc(p.name)}</span><span class="tw-handle">${esc(handle)} · ${esc(when)}</span></div>
       ${text}
@@ -231,10 +234,12 @@ function reconcile(container, items, keyOf, html) {
 // ---------- render ----------
 
 function renderHeader(d) {
-  const notConnected = d.products.filter((p) => p.enabled && !p.live).map((p) => p.name);
-  const mode = notConnected.length
-    ? `<span class="pill pill-stop" title="pnpm autocm x connect <slug>">X not connected: ${esc(notConnected.join(", "))}</span>`
-    : "";
+  accounts.renderSelector();
+  const notConnected = d.products.filter((p) => p.enabled && !p.invalid && !p.live).map((p) => p.name);
+  const sessionProblems = d.products.filter((p) => p.x?.error).map((p) => p.name);
+  const mode =
+    (notConnected.length ? `<button type="button" class="pill pill-stop pill-btn" data-open-accounts title="Connect X from the account menu">X not connected: ${esc(notConnected.join(", "))}</button>` : "") +
+    (sessionProblems.length ? `<button type="button" class="pill pill-stop pill-btn" data-open-accounts title="Reconnect from the account menu">X session problem: ${esc(sessionProblems.join(", "))}</button>` : "");
   const paused = d.paused
     ? `<span class="pill pill-stop">Paused</span><span class="muted small" title="${esc(d.paused)}">${esc(d.paused)}</span>`
     : `<span class="pill pill-go">Publishing on</span>`;
@@ -246,9 +251,10 @@ function renderHeader(d) {
   pb.disabled = state.busy.has("pause");
 
   $("#quotas").innerHTML = d.products
+    .filter((p) => !p.invalid && (!state.selected || p.slug === state.selected))
     .map((p) => {
       const pct = p.daily_cap ? Math.min(100, (p.today_count / p.daily_cap) * 100) : 100;
-      const live = p.live ? "connected to X" : "X not connected";
+      const live = p.x ? `connected to X as @${p.x.handle}` : "X not connected";
       return `<div class="quota${p.enabled ? "" : " off"}" title="${esc(p.name)}: ${p.today_count} of ${p.daily_cap} posts today (${esc(p.timezone)}), ${live}">
         <span class="quota-name">${esc(p.name)}</span>
         <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>
@@ -263,8 +269,11 @@ function render() {
   if (!d) return;
   state.products = new Map(d.products.map((p) => [p.slug, p]));
   renderHeader(d);
+  accounts.renderXCard();
   reconcile($("#upcoming"), d.upcoming, (s) => `slot-${s.id}`, slotHtml);
   $("#upcoming-empty").hidden = d.upcoming.length > 0;
+  const who = state.selected ? state.products.get(state.selected)?.name : null;
+  $("#upcoming-empty").textContent = `Nothing planned${who ? ` for ${who}` : ""}. The scheduler plans each day at 00:05 UTC.`;
   $("#lede-upcoming").textContent = d.paused
     ? "Publishing is paused. Nothing goes out until you resume; posts past their time by more than 3 h are skipped."
     : "Posts publish automatically at their time unless you discard them.";
@@ -286,7 +295,17 @@ async function refresh() {
   if (loading) return loading;
   loading = (async () => {
     try {
-      state.data = await api("GET", "/api/state");
+      const sel = state.selected;
+      const data = await api("GET", sel ? `/api/state?product=${encodeURIComponent(sel)}` : "/api/state");
+      if (sel !== state.selected) return; // the account changed while loading; a newer refresh follows
+      const wasConnecting = new Set((state.data?.account_jobs ?? []).filter((j) => j.status === "running").map((j) => j.id));
+      state.data = data;
+      for (const j of data.account_jobs) {
+        if (j.kind !== "connect" || !wasConnecting.has(j.id) || j.status === "running") continue;
+        const p = data.products.find((x) => x.slug === j.product);
+        if (j.status === "done") toast(`${p?.name ?? j.product}: connected to X${p?.x ? ` as @${p.x.handle}` : ""}.`, "ok");
+        else toast(`${p?.name ?? j.product}: X connect failed: ${j.error ?? "unknown error"}`, "error");
+      }
       render();
       document.body.classList.remove("offline");
     } catch (e) {
@@ -302,7 +321,7 @@ async function refresh() {
 
 function schedule() {
   clearTimeout(timer);
-  const fast = (state.data?.upcoming ?? []).some((s) => s.status === "claimed");
+  const fast = (state.data?.upcoming ?? []).some((s) => s.status === "claimed") || (state.data?.account_jobs ?? []).some((j) => j.status === "running");
   timer = setTimeout(refresh, fast ? FAST_REFRESH_MS : REFRESH_MS);
 }
 
@@ -345,8 +364,40 @@ $("#pause-btn").addEventListener("click", () => {
   }
 });
 
+// ---------- routing: #account/new and #account/<slug> open the account form over Up next ----------
+
+function route() {
+  const m = /^#account\/(new|[a-z0-9-]{1,40})$/.exec(location.hash);
+  $("#view-upcoming").hidden = Boolean(m);
+  $("#view-account").hidden = !m;
+  document.body.classList.toggle("in-account", Boolean(m));
+  if (m) {
+    window.scrollTo(0, 0);
+    accounts.openView(m[1]);
+  } else {
+    accounts.closeView();
+    if (location.hash) history.replaceState(null, "", location.pathname);
+  }
+}
+let lastHash = location.hash;
+window.addEventListener("hashchange", () => {
+  if (accounts.isOpen() && !accounts.confirmLeave()) {
+    history.replaceState(null, "", lastHash || location.pathname);
+    return;
+  }
+  lastHash = location.hash;
+  route();
+});
+
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest("[data-open-accounts]")) return;
+  ev.stopPropagation();
+  $("#acct-btn").click();
+});
+
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refresh();
 });
 setInterval(tickClocks, 1000);
+route();
 refresh();

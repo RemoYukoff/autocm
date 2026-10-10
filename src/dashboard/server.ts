@@ -5,10 +5,15 @@ import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono, type Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import { logEvent } from "../core/db/index.ts";
 import { log } from "../core/log.ts";
 import { OUT_DIR, ROOT } from "../core/paths.ts";
+import { decodeBase64, getUpload, MAX_UPLOAD_BODY, stageUpload, UPLOAD_RULES, UploadError, type UploadKind } from "../products/uploads.ts";
+import { createProduct, ProductWriteError, readProductForEdit, SLUG_RE, updateProduct } from "../products/write.ts";
+import { avatarFile, disconnect, getAccountJob, listAccountJobs, productAssetFile, startConnect, startPrefill } from "./accounts.ts";
 import { ActionError, discardPost, pausePublishing, resumePublishing } from "./actions.ts";
-import { headerState, postView, upcomingSlots } from "./queries.ts";
+import { headerState, postView, productViews, upcomingSlots } from "./queries.ts";
 
 export const DEFAULT_PORT = 4321;
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
@@ -19,7 +24,10 @@ const MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
+  ".svg": "image/svg+xml",
   ".mp4": "video/mp4",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
   ".json": "application/json; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -58,10 +66,10 @@ export function resolveMediaPath(urlPath: string, root = OUT_DIR): string | null
 }
 
 /** Stream a file with HTTP Range support (video seeking needs it). */
-function sendFile(c: Context, file: string, cache = "no-cache"): Response {
+function sendFile(c: Context, file: string, cache = "no-cache", extra: Record<string, string> = {}): Response {
   const size = fs.statSync(file).size;
   const type = MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream";
-  const headers: Record<string, string> = { "Content-Type": type, "Accept-Ranges": "bytes", "Cache-Control": cache, "X-Content-Type-Options": "nosniff" };
+  const headers: Record<string, string> = { "Content-Type": type, "Accept-Ranges": "bytes", "Cache-Control": cache, "X-Content-Type-Options": "nosniff", ...extra };
   const range = c.req.header("range");
   const m = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
   if (m && (m[1] || m[2])) {
@@ -79,8 +87,13 @@ function sendFile(c: Context, file: string, cache = "no-cache"): Response {
   return new Response(stream, { status: 200, headers: { ...headers, "Content-Length": String(size) } });
 }
 
+/** User-supplied images (logos, avatars, SVG from websites): never let them run script on this origin. */
+const UNTRUSTED = { "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; media-src 'self'; sandbox" };
+
 function fail(c: Context, e: unknown) {
   if (e instanceof ActionError) return c.json({ error: e.message }, e.status);
+  if (e instanceof ProductWriteError) return c.json({ error: e.message, errors: e.errors }, e.status);
+  if (e instanceof UploadError) return c.json({ error: e.message }, 400);
   log.error({ err: (e as Error).message }, "dashboard action failed");
   return c.json({ error: (e as Error).message }, 500);
 }
@@ -89,6 +102,24 @@ function idParam(c: Context): number {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) throw new ActionError(400, `bad id "${c.req.param("id")}"`);
   return id;
+}
+
+/** `?product=<slug>` filter, or undefined for all accounts. */
+function productFilter(c: Context): string | undefined {
+  const p = c.req.query("product");
+  if (!p) return undefined;
+  if (!SLUG_RE.test(p)) throw new ActionError(400, `bad product "${p}"`);
+  return p;
+}
+
+function slugParam(c: Context): string {
+  const slug = c.req.param("slug") ?? "";
+  if (!SLUG_RE.test(slug)) throw new ActionError(400, `bad product "${slug}"`);
+  return slug;
+}
+
+function logProductEvent(type: string, product: string): void {
+  logEvent(type, { product, payload: { source: "dashboard" } });
 }
 
 async function body(c: Context): Promise<Record<string, unknown>> {
@@ -130,6 +161,7 @@ export function createApp(): Hono {
   };
   app.get("/", page("index.html"));
   app.get("/app.js", page("app.js"));
+  app.get("/account.js", page("account.js"));
   app.get("/app.css", page("app.css"));
   app.get("/fonts/geist.woff2", (c) => (fs.existsSync(FONT_FILE) ? sendFile(c, FONT_FILE, "max-age=86400") : c.notFound()));
 
@@ -142,7 +174,103 @@ export function createApp(): Hono {
   });
 
   // ---------- read API ----------
-  app.get("/api/state", (c) => c.json({ ...headerState(), upcoming: upcomingSlots() }));
+  app.get("/api/state", (c) => {
+    try {
+      return c.json({ ...headerState(), upcoming: upcomingSlots(60, productFilter(c)), account_jobs: listAccountJobs() });
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+
+  // ---------- accounts (products) ----------
+  app.get("/api/products/:slug", (c) => {
+    try {
+      const slug = slugParam(c);
+      return c.json({ ...readProductForEdit(slug), account: productViews().find((p) => p.slug === slug) ?? null });
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+  app.post("/api/products", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
+    try {
+      const b = await body(c);
+      const r = createProduct(b.slug, b);
+      logProductEvent("product_created", r.slug);
+      return c.json(r, 201);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+  app.put("/api/products/:slug", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
+    try {
+      const r = updateProduct(slugParam(c), await body(c));
+      logProductEvent("product_updated", r.slug);
+      return c.json(r);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+  app.get("/api/products/:slug/avatar", (c) => {
+    const file = avatarFile(c.req.param("slug"));
+    return file ? sendFile(c, file, "max-age=300", UNTRUSTED) : c.text("not found", 404);
+  });
+  app.get("/api/products/:slug/file", (c) => {
+    const file = productAssetFile(c.req.param("slug"), c.req.query("path") ?? "");
+    return file ? sendFile(c, file, "no-cache", UNTRUSTED) : c.text("not found", 404);
+  });
+  app.post("/api/products/:slug/x/connect", (c) => {
+    try {
+      return c.json({ job: startConnect(slugParam(c)) }, 202);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+  app.post("/api/products/:slug/x/disconnect", async (c) => {
+    try {
+      const slug = slugParam(c);
+      await disconnect(slug);
+      return c.json({ ok: true, account: productViews().find((p) => p.slug === slug) ?? null });
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+
+  // Staged uploads (logo, screens, clips, fonts): JSON with base64 data, so the JSON-only CSRF rule still holds.
+  app.post(
+    "/api/uploads",
+    bodyLimit({ maxSize: MAX_UPLOAD_BODY, onError: (c) => c.json({ error: `upload too large (max ${UPLOAD_RULES.clip.maxBytes / 1024 / 1024} MB)` }, 413) }),
+    async (c) => {
+      try {
+        const b = await body(c);
+        const kind = b.kind as UploadKind;
+        if (!Object.hasOwn(UPLOAD_RULES, String(kind))) throw new ActionError(400, "kind must be logo, screen, clip or font");
+        const up = stageUpload(kind, typeof b.name === "string" ? b.name : kind, decodeBase64(b.data, UPLOAD_RULES[kind].maxBytes));
+        return c.json({ token: up.token, kind: up.kind, name: up.name, mime: up.mime, bytes: up.bytes, url: `/api/uploads/${up.token}` }, 201);
+      } catch (e) {
+        return fail(c, e);
+      }
+    },
+  );
+  app.get("/api/uploads/:token", (c) => {
+    const up = getUpload(c.req.param("token"));
+    return up ? sendFile(c, up.file, "no-store", UNTRUSTED) : c.text("not found", 404);
+  });
+
+  // "Fill from website": background job, then the form fetches the draft.
+  app.post("/api/prefill", async (c) => {
+    try {
+      const b = await body(c);
+      return c.json({ job: startPrefill(b.url) }, 202);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+  app.get("/api/prefill/:id", (c) => {
+    const j = getAccountJob(Number(c.req.param("id")));
+    if (!j || j.job.kind !== "prefill") return c.json({ error: "no such job" }, 404);
+    const d = j.draft;
+    return c.json({ job: j.job, draft: d ? { ...d, logo_url: d.logo_upload ? `/api/uploads/${d.logo_upload}` : null } : null });
+  });
 
   // ---------- actions ----------
   app.post("/api/posts/:id/discard", (c) => {

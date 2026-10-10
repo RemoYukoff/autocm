@@ -1,6 +1,6 @@
 // Read side of the dashboard: slots, posts and header stats shaped for the UI.
 import path from "node:path";
-import { loadProducts } from "../core/config.ts";
+import { listProductSlugs, loadProduct, loadProducts } from "../core/config.ts";
 import { getDb } from "../core/db/index.ts";
 import { env } from "../core/env.ts";
 import { OUT_DIR } from "../core/paths.ts";
@@ -9,6 +9,7 @@ import type { SlotRow } from "../scheduler/index.ts";
 import { countPublishedBetween, weightedLength } from "../safety/guards.ts";
 import { pausedReason } from "../safety/pause.ts";
 import { dayRangeUtc } from "../safety/time.ts";
+import { avatarFile } from "./accounts.ts";
 
 
 export interface MediaView {
@@ -53,9 +54,19 @@ export interface SlotView {
   post: PostView | null;
 }
 
+export interface XAccountView {
+  handle: string;
+  name: string | null;
+  avatar_url: string | null;
+  connected_at: string;
+  last_ok_at: string | null;
+  error: string | null;
+}
+
 export interface ProductView {
   slug: string;
   name: string;
+  /** @handle shown on previews: the connected account's, else product.yaml's `handle`. */
   handle: string | null;
   timezone: string;
   daily_cap: number;
@@ -63,6 +74,9 @@ export interface ProductView {
   live: boolean;
   enabled: boolean;
   color: string;
+  x: XAccountView | null;
+  /** Set when product.yaml does not load; the account can still be opened and fixed. */
+  invalid: string | null;
 }
 
 function parseJson<T>(raw: string | null): T | null {
@@ -150,38 +164,63 @@ function slotPost(slot: SlotRow): PostRow | undefined {
  * What the bot is about to publish: every slot the scheduler still acts on (pending / claimed / generated, even if
  * a guard is holding it past its time). Vetoed, failed and published slots drop out.
  */
-export function upcomingSlots(limit = 60): SlotView[] {
+export function upcomingSlots(limit = 60, product?: string): SlotView[] {
   const rows = getDb()
-    .prepare("SELECT * FROM slots WHERE status IN ('pending','claimed','generated') ORDER BY scheduled_at LIMIT ?")
-    .all(limit) as unknown as SlotRow[];
+    .prepare("SELECT * FROM slots WHERE status IN ('pending','claimed','generated') AND (? IS NULL OR product = ?) ORDER BY scheduled_at LIMIT ?")
+    .all(product ?? null, product ?? null, limit) as unknown as SlotRow[];
   return rows.map((s) => {
     const p = slotPost(s);
     return { id: s.id, product: s.product, scheduled_at: s.scheduled_at, status: s.status, claimed_at: s.claimed_at, post: p ? postView(p) : null };
   });
 }
 
-function safeProducts(): Product[] {
+/** Every product; one broken product.yaml must not hide the others, so fall back to loading one by one. */
+function safeProducts(): (Product | { slug: string; error: string })[] {
   try {
     return loadProducts();
   } catch {
-    return [];
+    return listProductSlugs().map((slug) => {
+      try {
+        return loadProduct(slug);
+      } catch (e) {
+        return { slug, error: (e as Error).message.split("\n").slice(0, 2).join(" ") };
+      }
+    });
   }
+}
+
+function xView(slug: string, a: Product["xAccount"]): XAccountView | null {
+  if (!a) return null;
+  return {
+    handle: a.handle.replace(/^@/, ""),
+    name: a.name,
+    avatar_url: avatarFile(slug, a) ? `/api/products/${encodeURIComponent(slug)}/avatar?v=${encodeURIComponent(a.connected_at)}` : null,
+    connected_at: a.connected_at,
+    last_ok_at: a.last_ok_at,
+    error: a.error,
+  };
 }
 
 export function productViews(now = new Date()): ProductView[] {
   return safeProducts().map((p) => {
+    if (!("config" in p)) {
+      return { slug: p.slug, name: p.slug, handle: null, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: "#5f6873", x: null, invalid: p.error };
+    }
     const c = p.config;
     const today = dayRangeUtc(now, c.timezone);
+    const x = xView(c.slug, p.xAccount);
     return {
       slug: c.slug,
       name: c.name,
-      handle: c.handle ? c.handle.replace(/^@/, "") : null,
+      handle: x?.handle ?? (c.handle ? c.handle.replace(/^@/, "") : null),
       timezone: c.timezone,
       daily_cap: c.cadence.daily_cap,
       today_count: countPublishedBetween(today.start, today.end, c.slug),
       live: p.xAccount !== null,
       enabled: c.enabled,
       color: c.brand.colors.primary,
+      x,
+      invalid: null,
     };
   });
 }
