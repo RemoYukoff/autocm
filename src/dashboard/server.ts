@@ -5,15 +5,12 @@ import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono, type Context } from "hono";
-import { bodyLimit } from "hono/body-limit";
-import { logEvent } from "../core/db/index.ts";
 import { log } from "../core/log.ts";
 import { OUT_DIR, ROOT } from "../core/paths.ts";
-import { decodeBase64, getUpload, MAX_UPLOAD_BODY, stageUpload, UPLOAD_RULES, UploadError, type UploadKind } from "../products/uploads.ts";
-import { ProductWriteError, readProductForEdit, SLUG_RE, updateProduct } from "../products/write.ts";
-import { avatarFile, deleteAccount, getAccountJob, listAccountJobs, productAssetFile, startConnect, startCreate, startPrefill } from "./accounts.ts";
+import { SLUG_RE } from "../products/write.ts";
+import { avatarFile, deleteAccount, getAccountJob, listAccountJobs, startAdd, startReconnect, startWebsite } from "./accounts.ts";
 import { ActionError, discardPost, pausePublishing, resumePublishing } from "./actions.ts";
-import { headerState, postView, productViews, upcomingSlots } from "./queries.ts";
+import { headerState, postView, upcomingSlots } from "./queries.ts";
 
 export const DEFAULT_PORT = 4321;
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
@@ -87,13 +84,11 @@ function sendFile(c: Context, file: string, cache = "no-cache", extra: Record<st
   return new Response(stream, { status: 200, headers: { ...headers, "Content-Length": String(size) } });
 }
 
-/** User-supplied images (logos, avatars, SVG from websites): never let them run script on this origin. */
+/** Avatars downloaded from X: never let them run script on this origin. */
 const UNTRUSTED = { "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; media-src 'self'; sandbox" };
 
 function fail(c: Context, e: unknown) {
   if (e instanceof ActionError) return c.json({ error: e.message }, e.status);
-  if (e instanceof ProductWriteError) return c.json({ error: e.message, errors: e.errors }, e.status);
-  if (e instanceof UploadError) return c.json({ error: e.message }, 400);
   log.error({ err: (e as Error).message }, "dashboard action failed");
   return c.json({ error: (e as Error).message }, 500);
 }
@@ -118,9 +113,6 @@ function slugParam(c: Context): string {
   return slug;
 }
 
-function logProductEvent(type: string, product: string): void {
-  logEvent(type, { product, payload: { source: "dashboard" } });
-}
 
 async function body(c: Context): Promise<Record<string, unknown>> {
   try {
@@ -182,96 +174,44 @@ export function createApp(): Hono {
     }
   });
 
-  // ---------- accounts (products) ----------
-  app.get("/api/products/:slug", (c) => {
+  // ---------- accounts ----------
+  // Add = X login (background job); then the website, from which the product is written. No settings are exposed.
+  app.post("/api/accounts", (c) => {
     try {
-      const slug = slugParam(c);
-      return c.json({ ...readProductForEdit(slug), account: productViews().find((p) => p.slug === slug) ?? null });
+      return c.json({ job: startAdd() }, 202);
     } catch (e) {
       return fail(c, e);
     }
   });
-  app.post("/api/products", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
+  app.post("/api/accounts/:slug/website", async (c) => {
     try {
-      return c.json({ job: startCreate(await body(c)) }, 202);
+      return c.json({ job: startWebsite(slugParam(c), (await body(c)).url) }, 202);
     } catch (e) {
       return fail(c, e);
     }
   });
-  app.put("/api/products/:slug", bodyLimit({ maxSize: 4 * 1024 * 1024 }), async (c) => {
+  app.post("/api/accounts/:slug/reconnect", (c) => {
     try {
-      const r = updateProduct(slugParam(c), await body(c));
-      logProductEvent("product_updated", r.slug);
-      return c.json(r);
+      return c.json({ job: startReconnect(slugParam(c)) }, 202);
     } catch (e) {
       return fail(c, e);
     }
   });
-  app.get("/api/products/:slug/avatar", (c) => {
-    const file = avatarFile(c.req.param("slug"));
-    return file ? sendFile(c, file, "max-age=300", UNTRUSTED) : c.text("not found", 404);
-  });
-  app.get("/api/products/:slug/file", (c) => {
-    const file = productAssetFile(c.req.param("slug"), c.req.query("path") ?? "");
-    return file ? sendFile(c, file, "no-cache", UNTRUSTED) : c.text("not found", 404);
-  });
-  app.post("/api/products/:slug/x/connect", (c) => {
+  app.post("/api/accounts/:slug/delete", async (c) => {
     try {
-      return c.json({ job: startConnect(slugParam(c)) }, 202);
-    } catch (e) {
-      return fail(c, e);
-    }
-  });
-  app.post("/api/products/:slug/delete", async (c) => {
-    try {
-      const slug = slugParam(c);
-      await deleteAccount(slug);
-      logProductEvent("product_deleted", slug);
+      await deleteAccount(slugParam(c));
       return c.json({ ok: true });
     } catch (e) {
       return fail(c, e);
     }
   });
+  app.get("/api/accounts/:slug/avatar", (c) => {
+    const file = avatarFile(c.req.param("slug"));
+    return file ? sendFile(c, file, "max-age=300", UNTRUSTED) : c.text("not found", 404);
+  });
   app.get("/api/jobs/:id", (c) => {
-    const j = getAccountJob(Number(c.req.param("id")));
-    return j ? c.json({ job: j.job }) : c.json({ error: "unknown job" }, 404);
-  });
-
-  // Staged uploads (logo, screens, clips, fonts): JSON with base64 data, so the JSON-only CSRF rule still holds.
-  app.post(
-    "/api/uploads",
-    bodyLimit({ maxSize: MAX_UPLOAD_BODY, onError: (c) => c.json({ error: `upload too large (max ${UPLOAD_RULES.clip.maxBytes / 1024 / 1024} MB)` }, 413) }),
-    async (c) => {
-      try {
-        const b = await body(c);
-        const kind = b.kind as UploadKind;
-        if (!Object.hasOwn(UPLOAD_RULES, String(kind))) throw new ActionError(400, "kind must be logo, screen, clip or font");
-        const up = stageUpload(kind, typeof b.name === "string" ? b.name : kind, decodeBase64(b.data, UPLOAD_RULES[kind].maxBytes));
-        return c.json({ token: up.token, kind: up.kind, name: up.name, mime: up.mime, bytes: up.bytes, url: `/api/uploads/${up.token}` }, 201);
-      } catch (e) {
-        return fail(c, e);
-      }
-    },
-  );
-  app.get("/api/uploads/:token", (c) => {
-    const up = getUpload(c.req.param("token"));
-    return up ? sendFile(c, up.file, "no-store", UNTRUSTED) : c.text("not found", 404);
-  });
-
-  // "Fill from website": background job, then the form fetches the draft.
-  app.post("/api/prefill", async (c) => {
-    try {
-      const b = await body(c);
-      return c.json({ job: startPrefill(b.url) }, 202);
-    } catch (e) {
-      return fail(c, e);
-    }
-  });
-  app.get("/api/prefill/:id", (c) => {
-    const j = getAccountJob(Number(c.req.param("id")));
-    if (!j || j.job.kind !== "prefill") return c.json({ error: "no such job" }, 404);
-    const d = j.draft;
-    return c.json({ job: j.job, draft: d ? { ...d, logo_url: d.logo_upload ? `/api/uploads/${d.logo_upload}` : null } : null });
+    const job = getAccountJob(Number(c.req.param("id")));
+    return job ? c.json({ job }) : c.json({ error: "unknown job" }, 404);
   });
 
   // ---------- actions ----------

@@ -72,20 +72,19 @@ list; nothing tracks it afterwards.
 
 ### Accounts
 
-The account menu in the header switches between **All accounts** and one product (Up next and the quotas follow
-the choice, remembered per browser). From it:
+The account menu in the header switches between **All accounts** and one account (Up next and the quotas follow the
+choice, remembered per browser). Adding an account takes two steps and exposes no product settings:
 
-- **+ Add account** opens a form with every `product.yaml` field (voice, pillars, format mix, cadence and windows,
-  brand colors, fonts, logo, links), the knowledge files, and optional screenshots and clips with descriptions.
-  **Fill from website** reads the homepage and up to 4 relevant pages (pricing, features, about, docs) in headless
-  Chromium, picks the logo and brand colors from the rendered page, and asks the LLM (stage `product-draft`) for a
-  draft plus `knowledge/00-overview.md` ending in "Facts you must not claim". Nothing is written until you press
-  Create account. New products get Geist fonts copied into `assets/fonts/`.
-- **Edit** opens the same form for an existing product (the slug cannot change). Saving validates against
-  `ProductConfig`, shows errors next to the fields, and only rewrites what changed in `product.yaml`, so comments
-  on untouched parts survive.
-- **Connect X** / **Reconnect** opens a visible browser window on this computer where you log in to the product's
-  X account; the menu then shows its avatar and @handle. **Disconnect** deletes the session.
+1. **+ Add account** opens a browser window at x.com/login. Log in to the X account autocm should post from; the
+   window closes by itself and the account appears under its @handle (its slug comes from the handle).
+2. The account then asks for **the product's website**. autocm reads the homepage and up to 4 relevant pages
+   (pricing, features, about, docs) in headless Chromium, picks the logo and brand colors, asks the LLM (stage
+   `product-draft`) for everything else (voice, pillars, format mix, knowledge ending in "Facts you must not
+   claim"), fills any gap with defaults, writes `products/<slug>/` and plans posts at once. If the site can't be
+   read, the account keeps asking for a website.
+
+The rest of the menu: **Reconnect** when a session breaks (it must be the same X account), **Delete** to remove an
+account with its session, product folder, generated files and planned posts.
 
 ## Connecting X
 
@@ -93,10 +92,9 @@ autocm does not use the X API. Each product posts and reads its profile through 
 logged-in browser profile in `data/sessions/<slug>/`, driven by Playwright's full Chromium build: headed for
 the login, headless afterwards, with the same user agent in both so X sees one browser.
 
-1. **+ Add account** in the dashboard: fill the form (or "Fill from website"), then **Create account and log in to X**.
-   A Chromium window opens at x.com/login; log in (2FA is fine) within 10 min and it closes by itself. Only then is
-   the product written, with the handle, display name and avatar (`products/<slug>/assets/x-profile-avatar.<ext>`).
-   Closing the window cancels and leaves nothing behind.
+1. **+ Add account** in the dashboard opens a Chromium window at x.com/login; log in (2FA is fine) within 10 min and
+   it closes by itself. Handle, display name and avatar are saved; closing the window cancels and leaves nothing
+   behind. Then give the account its product's website (see "Accounts" above).
 2. If a session breaks (logged out, locked), the account shows **Reconnect**. From the CLI, with the service stopped
    (a browser profile can only be open in one process): `pnpm autocm x connect <slug>`, and `pnpm autocm x whoami <slug>`
    to check it.
@@ -119,7 +117,7 @@ the login, headless afterwards, with the same user agent in both so X sees one b
 
 ## Adding a product
 
-Only from the dashboard (**+ Add account**), which also logs in to X (see "Connecting X"). `products/README.md` documents the folder it writes.
+Only from the dashboard: **+ Add account** (X login), then the product's website (see "Accounts"). `products/README.md` documents the folder autocm writes.
 
 ## Development
 

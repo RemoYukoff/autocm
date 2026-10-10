@@ -235,11 +235,11 @@ function reconcile(container, items, keyOf, html) {
 
 function renderHeader(d) {
   accounts.renderSelector();
-  const notConnected = d.products.filter((p) => p.enabled && !p.invalid && !p.live).map((p) => p.name);
-  const sessionProblems = d.products.filter((p) => p.x?.error).map((p) => p.name);
-  const mode =
-    (notConnected.length ? `<button type="button" class="pill pill-stop pill-btn" data-open-accounts title="Connect X from the account menu">X not connected: ${esc(notConnected.join(", "))}</button>` : "") +
-    (sessionProblems.length ? `<button type="button" class="pill pill-stop pill-btn" data-open-accounts title="Reconnect from the account menu">X session problem: ${esc(sessionProblems.join(", "))}</button>` : "");
+  const ready = d.products.filter((p) => p.setup === "ready" && !p.invalid);
+  const sessionProblems = ready.filter((p) => !p.x || p.x.error).map((p) => p.name);
+  const mode = sessionProblems.length
+    ? `<button type="button" class="pill pill-stop pill-btn" data-open-accounts title="Reconnect from the account menu">X session problem: ${esc(sessionProblems.join(", "))}</button>`
+    : "";
   const paused = d.paused
     ? `<span class="pill pill-stop">Paused</span><span class="muted small" title="${esc(d.paused)}">${esc(d.paused)}</span>`
     : `<span class="pill pill-go">Publishing on</span>`;
@@ -251,10 +251,10 @@ function renderHeader(d) {
   pb.disabled = state.busy.has("pause");
 
   $("#quotas").innerHTML = d.products
-    .filter((p) => !p.invalid && (!state.selected || p.slug === state.selected))
+    .filter((p) => p.setup === "ready" && !p.invalid && (!state.selected || p.slug === state.selected))
     .map((p) => {
       const pct = p.daily_cap ? Math.min(100, (p.today_count / p.daily_cap) * 100) : 100;
-      const live = p.x ? `connected to X as @${p.x.handle}` : "X not connected";
+      const live = p.x ? `posting as @${p.x.handle}` : "X session missing";
       return `<div class="quota${p.enabled ? "" : " off"}" title="${esc(p.name)}: ${p.today_count} of ${p.daily_cap} posts today (${esc(p.timezone)}), ${live}">
         <span class="quota-name">${esc(p.name)}</span>
         <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>
@@ -269,13 +269,15 @@ function render() {
   if (!d) return;
   state.products = new Map(d.products.map((p) => [p.slug, p]));
   renderHeader(d);
-  accounts.renderXCard();
+  accounts.renderSetup();
   reconcile($("#upcoming"), d.upcoming, (s) => `slot-${s.id}`, slotHtml);
   $("#upcoming-empty").hidden = d.upcoming.length > 0;
   const who = state.selected ? state.products.get(state.selected)?.name : null;
-  $("#upcoming-empty").textContent = state.data?.products.length
-    ? `Nothing planned${who ? ` for ${who}` : ""}. The scheduler plans each day at 00:05 UTC.`
-    : "No accounts yet. Add one from the account menu (top left) to start posting.";
+  $("#upcoming-empty").textContent = !d.products.length
+    ? "No accounts yet. Add one from the account menu (top left) to start posting."
+    : d.products.some((p) => p.setup === "ready")
+      ? `Nothing planned${who ? ` for ${who}` : ""}. The scheduler plans each day at 00:05 UTC.`
+      : "Posts are planned as soon as an account has its website.";
   $("#lede-upcoming").textContent = d.paused
     ? "Publishing is paused. Nothing goes out until you resume; posts past their time by more than 3 h are skipped."
     : "Posts publish automatically at their time unless you discard them.";
@@ -300,15 +302,10 @@ async function refresh() {
       const sel = state.selected;
       const data = await api("GET", sel ? `/api/state?product=${encodeURIComponent(sel)}` : "/api/state");
       if (sel !== state.selected) return; // the account changed while loading; a newer refresh follows
-      const wasConnecting = new Set((state.data?.account_jobs ?? []).filter((j) => j.status === "running").map((j) => j.id));
+      const wasRunning = new Set((state.data?.account_jobs ?? []).filter((j) => j.status === "running").map((j) => j.id));
       state.data = data;
-      for (const j of data.account_jobs) {
-        if (j.kind !== "connect" || !wasConnecting.has(j.id) || j.status === "running") continue;
-        const p = data.products.find((x) => x.slug === j.product);
-        if (j.status === "done") toast(`${p?.name ?? j.product}: connected to X${p?.x ? ` as @${p.x.handle}` : ""}.`, "ok");
-        else toast(`${p?.name ?? j.product}: X connect failed: ${j.error ?? "unknown error"}`, "error");
-      }
       render();
+      for (const j of data.account_jobs) if (wasRunning.has(j.id) && j.status !== "running") accounts.jobFinished(j);
       document.body.classList.remove("offline");
     } catch (e) {
       document.body.classList.add("offline");
@@ -366,31 +363,6 @@ $("#pause-btn").addEventListener("click", () => {
   }
 });
 
-// ---------- routing: #account/new and #account/<slug> open the account form over Up next ----------
-
-function route() {
-  const m = /^#account\/(new|[a-z0-9-]{1,40})$/.exec(location.hash);
-  $("#view-upcoming").hidden = Boolean(m);
-  $("#view-account").hidden = !m;
-  document.body.classList.toggle("in-account", Boolean(m));
-  if (m) {
-    window.scrollTo(0, 0);
-    accounts.openView(m[1]);
-  } else {
-    accounts.closeView();
-    if (location.hash) history.replaceState(null, "", location.pathname);
-  }
-}
-let lastHash = location.hash;
-window.addEventListener("hashchange", () => {
-  if (accounts.isOpen() && !accounts.confirmLeave()) {
-    history.replaceState(null, "", lastHash || location.pathname);
-    return;
-  }
-  lastHash = location.hash;
-  route();
-});
-
 document.addEventListener("click", (ev) => {
   if (!ev.target.closest("[data-open-accounts]")) return;
   ev.stopPropagation();
@@ -401,5 +373,4 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refresh();
 });
 setInterval(tickClocks, 1000);
-route();
 refresh();

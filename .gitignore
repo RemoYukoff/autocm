@@ -9,3 +9,4 @@ products/*/.env
 remotion/out/
 .claude/worktrees/
 data/sessions/
+data/accounts/

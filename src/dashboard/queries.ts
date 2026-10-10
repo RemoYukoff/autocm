@@ -1,10 +1,10 @@
 // Read side of the dashboard: slots, posts and header stats shaped for the UI.
 import path from "node:path";
 import { listProductSlugs, loadProduct, loadProducts } from "../core/config.ts";
-import { getDb } from "../core/db/index.ts";
+import { getDb, getXAccount, listXAccounts } from "../core/db/index.ts";
 import { env } from "../core/env.ts";
 import { OUT_DIR } from "../core/paths.ts";
-import type { MediaResult, PostRow, PostStatus, Product } from "../core/types.ts";
+import type { MediaResult, PostRow, PostStatus, Product, XAccount } from "../core/types.ts";
 import type { SlotRow } from "../scheduler/index.ts";
 import { countPublishedBetween, weightedLength } from "../safety/guards.ts";
 import { pausedReason } from "../safety/pause.ts";
@@ -75,7 +75,9 @@ export interface ProductView {
   enabled: boolean;
   color: string;
   x: XAccountView | null;
-  /** Set when product.yaml does not load; the account can still be opened and fixed. */
+  /** "website": logged in to X, waiting for the product's website; "ready": posting. */
+  setup: "website" | "ready";
+  /** Set when product.yaml does not load (the account can only be deleted). */
   invalid: string | null;
 }
 
@@ -189,22 +191,34 @@ function safeProducts(): (Product | { slug: string; error: string })[] {
   }
 }
 
-function xView(slug: string, a: Product["xAccount"]): XAccountView | null {
+function xView(slug: string, a: XAccount | null): XAccountView | null {
   if (!a) return null;
   return {
     handle: a.handle.replace(/^@/, ""),
     name: a.name,
-    avatar_url: avatarFile(slug, a) ? `/api/products/${encodeURIComponent(slug)}/avatar?v=${encodeURIComponent(a.connected_at)}` : null,
+    avatar_url: avatarFile(slug, a) ? `/api/accounts/${encodeURIComponent(slug)}/avatar?v=${encodeURIComponent(a.connected_at)}` : null,
     connected_at: a.connected_at,
     last_ok_at: a.last_ok_at,
     error: a.error,
   };
 }
 
+const PENDING_COLOR = "#5f6873";
+
+/** Every account: products, plus X logins still waiting for their website. */
 export function productViews(now = new Date()): ProductView[] {
-  return safeProducts().map((p) => {
+  const products = safeProducts();
+  const known = new Set(products.map((p) => ("config" in p ? p.config.slug : p.slug)));
+  const pending: ProductView[] = listXAccounts()
+    .filter((a) => !known.has(a.product))
+    .map((a) => {
+      const x = xView(a.product, a);
+      return { slug: a.product, name: a.name || a.handle, handle: x!.handle, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: PENDING_COLOR, x, setup: "website", invalid: null };
+    });
+  const ready = products.map((p): ProductView => {
     if (!("config" in p)) {
-      return { slug: p.slug, name: p.slug, handle: null, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: "#5f6873", x: null, invalid: p.error };
+      const x = xView(p.slug, getXAccount(p.slug));
+      return { slug: p.slug, name: p.slug, handle: x?.handle ?? null, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: PENDING_COLOR, x, setup: "ready", invalid: p.error };
     }
     const c = p.config;
     const today = dayRangeUtc(now, c.timezone);
@@ -220,9 +234,11 @@ export function productViews(now = new Date()): ProductView[] {
       enabled: c.enabled,
       color: c.brand.colors.primary,
       x,
+      setup: "ready",
       invalid: null,
     };
   });
+  return [...ready, ...pending].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function headerState(now = new Date()) {

@@ -1,14 +1,35 @@
-// "Fill from website": read a product's site with headless Chromium (homepage plus a few relevant same-origin
-// pages), pick a logo and brand colors from the rendered page, then ask the LLM for a draft product.yaml and an
-// overview knowledge file. Nothing is saved: the dashboard shows the draft in the form for review.
+// Read a product's site with headless Chromium (homepage plus a few relevant same-origin pages), pick a logo and
+// brand colors from the rendered page, then ask the LLM for a draft product.yaml and an overview knowledge file.
+// The draft is written as-is (src/dashboard/accounts.ts): nobody reviews it.
 import type { Browser, Page } from "playwright-core";
 import { z } from "zod";
 import { callJson } from "../llm.ts";
 import { log } from "../core/log.ts";
 import { launchBrowser } from "../media/browser.ts";
-import { stageUpload, type StagedUpload } from "./uploads.ts";
 import { defaultCadence } from "./schema.ts";
 import { slugify } from "./write.ts";
+
+export interface Logo {
+  data: Buffer;
+  /** From the bytes, not the URL: .svg, .png, .jpg or .webp. */
+  ext: string;
+}
+
+
+/** The image type of the bytes, by magic number (SVG by its root element). Null when not a usable logo. */
+export function logoExt(buf: Buffer): string | null {
+  if (buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return ".png";
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return ".jpg";
+  if (buf.length >= 12 && buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP") return ".webp";
+  const head = buf.subarray(0, 4096).toString("utf8").replace(/^\uFEFF/, "").trimStart();
+  if (/^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head)) return ".svg";
+  return null;
+}
+
+function asLogo(data: Buffer): Logo | null {
+  const ext = data.length && data.length <= LOGO_MAX_BYTES ? logoExt(data) : null;
+  return ext ? { data, ext } : null;
+}
 
 export const PREFILL_STAGE = "product-draft";
 const MAX_PAGES = 4;
@@ -41,18 +62,17 @@ export interface SiteScrape {
   meta: Record<string, string>;
   pages: PageText[];
   colors: BrandColors;
-  logo: StagedUpload | null;
+  logo: Logo | null;
   logoSource: string | null;
 }
 
 export interface ProductDraft {
   /** Form-shaped config (not yet validated; the user reviews and saves it). */
   config: Record<string, unknown>;
-  slug: string;
   knowledge: { name: string; content: string }[];
-  logo_upload: string | null;
-  logo_mime: string | null;
+  logo: Logo | null;
   sources: string[];
+  /** Choices made on the way (time zone fallback, logo source...), logged when the product is written. */
   notes: string[];
 }
 
@@ -299,16 +319,17 @@ async function fetchCapped(url: string): Promise<Buffer | null> {
   }
 }
 
-async function pickLogo(cands: InPage["logos"]): Promise<{ upload: StagedUpload; source: string } | null> {
+async function pickLogo(cands: InPage["logos"]): Promise<{ logo: Logo; source: string } | null> {
   for (const c of cands) {
-    try {
-      if (c.kind === "svg" && c.svg) return { upload: stageUpload("logo", "logo.svg", Buffer.from(c.svg)), source: "inline SVG in the page header" };
-      if (c.kind === "url" && c.url && /^https?:/.test(c.url)) {
-        const buf = await fetchCapped(c.url);
-        if (buf) return { upload: stageUpload("logo", new URL(c.url).pathname.split("/").pop() || "logo", buf), source: c.url };
-      }
-    } catch {
-      // not a usable image type (e.g. .ico): try the next candidate
+    // Not a usable image type (e.g. .ico): try the next candidate.
+    if (c.kind === "svg" && c.svg) {
+      const logo = asLogo(Buffer.from(c.svg));
+      if (logo) return { logo, source: "inline SVG in the page header" };
+    }
+    if (c.kind === "url" && c.url && /^https?:/.test(c.url)) {
+      const buf = await fetchCapped(c.url);
+      const logo = buf ? asLogo(buf) : null;
+      if (logo) return { logo, source: c.url };
     }
   }
   return null;
@@ -355,7 +376,7 @@ export async function scrapeSite(rawUrl: string, step: Step = () => {}, browserI
       meta: first.meta,
       pages,
       colors: first.colors,
-      logo: logo?.upload ?? null,
+      logo: logo?.logo ?? null,
       logoSource: logo?.source ?? null,
     };
   } finally {
@@ -458,11 +479,10 @@ export function buildDraft(s: SiteScrape, d: DraftOut): ProductDraft {
   const tz = validTz(d.timezone) ? d.timezone : "America/New_York";
   if (tz !== d.timezone) notes.push(`The suggested time zone "${d.timezone}" is not valid; using America/New_York.`);
   if (s.font && !/^(geist|system-ui|-apple-system|ui-sans-serif|sans-serif|arial|helvetica|segoe ui|blinkmacsystemfont)$/i.test(s.font)) {
-    notes.push(`The site uses ${s.font}. Images use Geist unless you upload ${s.font} woff2 files.`);
+    notes.push(`The site uses ${s.font}; images use Geist.`);
   }
-  if (!s.logo) notes.push("No logo found on the site: upload one before saving.");
+  if (!s.logo) notes.push("No logo found on the site; the X avatar is used.");
   else notes.push(`Logo from ${s.logoSource}.`);
-  notes.push("Colors were read from the rendered homepage; check them against the brand.");
 
   const config: Record<string, unknown> = {
     name: d.name.trim() || s.siteName || new URL(s.url).hostname,
@@ -487,10 +507,8 @@ export function buildDraft(s: SiteScrape, d: DraftOut): ProductDraft {
   };
   return {
     config,
-    slug: slugify(String(config.name)),
     knowledge: [{ name: "00-overview.md", content: `${knowledge}\n` }],
-    logo_upload: s.logo?.token ?? null,
-    logo_mime: s.logo?.mime ?? null,
+    logo: s.logo,
     sources: s.pages.map((p) => p.url),
     notes,
   };
