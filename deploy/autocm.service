@@ -1,0 +1,18 @@
+# systemd user unit to keep the scheduler running on this machine.
+# Install (manual, not done by the repo):
+#   cp deploy/autocm.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+#   systemctl --user enable --now autocm
+#   journalctl --user -u autocm -f
+[Unit]
+Description=autocm scheduler (autonomous X community manager)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/repos/autocm
+ExecStart=/usr/bin/env pnpm autocm run
+Restart=on-failure
+RestartSec=30
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=default.target
