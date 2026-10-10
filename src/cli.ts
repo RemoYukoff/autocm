@@ -10,6 +10,7 @@ import { generatePost } from "./pipeline.ts";
 import { publishPost, xWhoami } from "./publish/index.ts";
 import { pause, pausedReason, resume } from "./safety/pause.ts";
 import { planSlots, runDaemon, tick } from "./scheduler/index.ts";
+import { DEFAULT_PORT, startDashboard } from "./dashboard/server.ts";
 
 const program = new Command().name("autocm").description("Autonomous X community manager");
 
@@ -68,7 +69,34 @@ program.command("plan").option("-d, --days <n>", "days ahead", "1").description(
   console.log(`${await planSlots(Number(o.days))} slots created`);
 });
 program.command("tick").description("Run one scheduler pass").action(tick);
-program.command("run").description("Run the scheduler daemon").action(runDaemon);
+const portArg = (v: string | true | undefined): number => {
+  const port = v === undefined || v === true ? DEFAULT_PORT : Number(v);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error(`bad port "${String(v)}"`);
+  return port;
+};
+
+program
+  .command("run")
+  .description("Run the scheduler daemon")
+  .option("--dashboard [port]", `also serve the dashboard on 127.0.0.1 (default port ${DEFAULT_PORT})`)
+  .action(async (o: { dashboard?: string | true }) => {
+    const server = o.dashboard ? startDashboard(portArg(o.dashboard)) : null;
+    try {
+      await runDaemon();
+    } finally {
+      server?.close();
+    }
+  });
+
+program
+  .command("dashboard")
+  .description("Local web dashboard: preview upcoming posts, veto, regenerate, publish now")
+  .option("-p, --port <port>", "port", String(DEFAULT_PORT))
+  .action((o: { port: string }) => {
+    startDashboard(portArg(o.port), () => {
+      process.exitCode = 1;
+    });
+  });
 
 program.command("pause [reason...]").description("Stop all publishing").action((reason: string[] = []) => {
   pause(reason.join(" ") || "manual");
