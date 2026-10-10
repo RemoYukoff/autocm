@@ -80,16 +80,18 @@ async function downloadAvatar(ctx: BrowserContext, url: string | null, dir: stri
 /** connectX with injectable origin/headless/paths (tests drive a local fixture headless). */
 export function connectWithBrowser(slug: string, o: ConnectOptions = {}): Promise<XAccount> {
   const origin = o.origin ?? X_ORIGIN;
-  return withSession(slug, { origin, headless: o.headless ?? false, profileDir: o.profileDir }, async (ctx, page) => {
+  return withSession(slug, { origin, headless: o.headless ?? false, profileDir: o.profileDir }, async (ctx, loginPage) => {
+    if (!(await hasAuthCookie(ctx, origin, AUTH_COOKIE))) {
+      await loginPage.goto(xUrl(origin, PATHS.login), { waitUntil: "domcontentloaded", timeout: WAIT.navigation }).catch((e) => {
+        log.warn({ err: (e as Error).message.split("\n")[0] }, "x: login page slow to load; still waiting for the login");
+      });
+      log.info({ product: slug }, "x: waiting for the login in the browser window");
+      await waitForLogin(ctx, loginPage, origin, o.timeoutMs ?? WAIT.login, o.pollMs ?? 1500);
+    }
+    // The user may have closed the original tab and logged in from another one.
+    const page = loginPage.isClosed() ? (ctx.pages()[0] ?? (await ctx.newPage())) : loginPage;
     const tap = new GraphqlTap(page);
     try {
-      if (!(await hasAuthCookie(ctx, origin, AUTH_COOKIE))) {
-        await page.goto(xUrl(origin, PATHS.login), { waitUntil: "domcontentloaded", timeout: WAIT.navigation }).catch((e) => {
-          log.warn({ err: (e as Error).message.split("\n")[0] }, "x: login page slow to load; still waiting for the login");
-        });
-        log.info({ product: slug }, "x: waiting for the login in the browser window");
-        await waitForLogin(ctx, page, origin, o.timeoutMs ?? WAIT.login, o.pollMs ?? 1500);
-      }
       let profile;
       try {
         profile = await readProfile(ctx, page, tap, origin);

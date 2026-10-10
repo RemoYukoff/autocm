@@ -199,11 +199,14 @@ async function setAltText(page: Page, altText: string, images: number): Promise<
   }
 }
 
-async function attachMedia(page: Page, media: MediaFile[], altText: string | null | undefined): Promise<void> {
-  const input = page.locator(SEL.fileInput).first();
+/** Where the composer lives: the compose modal when there is one, else the page. */
+type Scope = Pick<Page, "locator">;
+
+async function attachMedia(page: Page, scope: Scope, media: MediaFile[], altText: string | null | undefined): Promise<void> {
+  const input = scope.locator(SEL.fileInput).first();
   await input.waitFor({ state: "attached", timeout: WAIT.composer });
   await input.setInputFiles(media.map((m) => m.path));
-  await page.locator(SEL.attachment).first().waitFor({ state: "attached", timeout: 60_000 });
+  await scope.locator(SEL.attachment).first().waitFor({ state: "attached", timeout: 60_000 });
 
   const images = media.filter((m) => m.mime.startsWith("image/")).length;
   if (altText && images) await setAltText(page, altText, images);
@@ -211,10 +214,10 @@ async function attachMedia(page: Page, media: MediaFile[], altText: string | nul
   // Upload and (for video) server-side processing: the Post button stays disabled and a progress bar shows.
   const hasVideo = media.some((m) => m.mime.startsWith("video/"));
   const deadline = Date.now() + (hasVideo ? WAIT.videoUpload : WAIT.imageUpload);
-  const button = page.locator(SEL.postButton).first();
+  const button = scope.locator(SEL.postButton).first();
   let readyStreak = 0;
   while (Date.now() < deadline) {
-    const uploading = (await page.locator(SEL.uploadProgress).count().catch(() => 0)) > 0;
+    const uploading = (await scope.locator(SEL.uploadProgress).count().catch(() => 0)) > 0;
     readyStreak = !uploading && (await isEnabled(button)) ? readyStreak + 1 : 0;
     if (readyStreak >= 2) return;
     await sleep(1000);
@@ -240,18 +243,21 @@ export async function composeAndPost(
   try {
     await requireAuthCookie(ctx, origin);
     await goto(page, xUrl(origin, PATHS.compose));
-    const box = page.locator(SEL.composerText).first();
     try {
-      await box.waitFor({ state: "visible", timeout: WAIT.composer });
+      await page.locator(SEL.composerText).first().waitFor({ state: "visible", timeout: WAIT.composer });
     } catch {
       assertNotWalled(page);
       if (await isVisible(page, SEL.loggedOutMarker)) throw new XAuthError(`${LOGGED_OUT} (login prompt shown)`);
       throw new Error("the composer did not appear");
     }
+    // /compose/post opens a modal over the home timeline, whose inline composer sits behind it: stay inside the modal.
+    const modal = page.locator(SEL.composeModal).filter({ has: page.locator(SEL.composerText) }).last();
+    const scope: Scope = (await modal.count()) > 0 ? modal : page;
+    const box = scope.locator(SEL.composerText).first();
     await fillComposer(page, box, input.text);
-    if (input.media.length) await attachMedia(page, input.media, input.altText);
+    if (input.media.length) await attachMedia(page, scope, input.media, input.altText);
 
-    const button = page.locator(SEL.postButton).first();
+    const button = scope.locator(SEL.postButton).first();
     const deadline = Date.now() + 15_000;
     while (!(await isEnabled(button))) {
       if (Date.now() > deadline) throw new Error("the Post button stayed disabled");

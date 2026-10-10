@@ -28,6 +28,8 @@ export const AUTH_WALL_PATHS = ["/login", "/i/flow/login", "/i/flow/signup", "/a
 export const AUTH_COOKIE = "auth_token";
 
 export const SEL = {
+  /** The compose modal /compose/post opens over the home timeline (which has its own inline composer behind it). */
+  composeModal: '[aria-modal="true"], [role="dialog"]',
   /** Composer text area (Draft.js contenteditable). `_0` is the first post of a thread. */
   composerText: '[data-testid="tweetTextarea_0"]',
   /** Hidden <input type=file> of the composer toolbar. */
@@ -37,7 +39,7 @@ export const SEL = {
   /** Attached media thumbnails in the composer. */
   attachment: '[data-testid="attachments"] [role="group"], [data-testid="attachments"] img, [data-testid="attachments"] video',
   /** Upload/processing progress shown on an attachment. */
-  uploadProgress: '[data-testid="attachments"] [role="progressbar"], [role="progressbar"][aria-valuenow]',
+  uploadProgress: '[data-testid="attachments"] [role="progressbar"]',
   /** Opens the media editor where the description (alt text) is entered. */
   altTextOpen: '[data-testid="altTextEditButton"], a[href="/compose/post/media"], a[href$="/media/edit"]',
   altTextInput: '[data-testid="altTextInput"], textarea[name="altTextInput"]',
@@ -80,7 +82,7 @@ export const X_ERROR_CODES = {
   rateLimit: [88, 185, 344],
 } as const;
 
-/** Bounded waits (ms). Video upload + processing on X can take minutes. */
+/** Bounded waits (ms). Video upload + processing on X can take minutes. Mutable only so tests can shorten them. */
 export const WAIT = {
   navigation: 45_000,
   composer: 30_000,
@@ -90,4 +92,4 @@ export const WAIT = {
   metrics: 30_000,
   profile: 30_000,
   login: 10 * 60_000,
-} as const;
+};
