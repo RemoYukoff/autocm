@@ -101,7 +101,7 @@ export function startConnect(slug: string): AccountJob {
 export async function disconnect(slug: string): Promise<void> {
   requireProduct(slug);
   if (running("connect", slug)) throw new ActionError(409, `a connect for ${slug} is still running`);
-  await track(disconnectX(slug));
+  await disconnectX(slug);
 }
 
 /** Read the website in the background and keep the draft until the form asks for it. */
