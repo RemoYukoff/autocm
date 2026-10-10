@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>stat</title>
+    <link rel="stylesheet" href="/brand.css" />
+    <link rel="stylesheet" href="../_shared/base.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="card" id="card">
+      <section class="body" id="body">
+        <div class="stat" id="stat"></div>
+        <h1 class="caption" id="caption"></h1>
+        <p class="sub" id="sub"></p>
+      </section>
+    </main>
+    <script type="module">
+      import { D, $, el, frame, segs, finish } from "../_shared/runtime.js";
+      frame();
+      // Without a stat the headline itself becomes the big number line.
+      const stat = D.stat || D.headline.map((s) => s.text).join("");
+      // Units/prefixes like "~", "$", "%", "x" render lighter than the digits.
+      for (const part of stat.match(/[\d.,]+|[^\d.,]+/g) || [stat]) {
+        $("#stat").append(/^[\d.,]+$/.test(part) ? el("span", "num", part) : el("span", "unit", part));
+      }
+      if (D.stat) segs($("#caption"), D.headline);
+      else $("#caption").remove();
+      if (D.lines.length) segs($("#sub"), D.lines[0]);
+      else $("#sub").remove();
+      finish(() => [{ name: "body", region: $("#body"), min: 0.35 }]);
+    </script>
+  </body>
+</html>

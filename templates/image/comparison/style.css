@@ -1,0 +1,119 @@
+.body {
+  justify-content: center;
+}
+
+.headline {
+  font-size: calc(var(--s) * 76px);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+  max-width: 1200px;
+}
+
+.table {
+  position: relative;
+  margin-top: calc(var(--s) * 52px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: calc(var(--s) * 28px);
+}
+
+.panel {
+  grid-column: 2;
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--primary) 9%, var(--bg));
+  border: 1px solid color-mix(in oklab, var(--accent) 34%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in oklab, var(--primary) 5%, transparent);
+  z-index: 0;
+}
+
+.cell {
+  position: relative;
+  z-index: 1;
+  grid-column: 1;
+  padding: calc(var(--s) * 20px) calc(var(--s) * 30px);
+  font-size: calc(var(--s) * 30px);
+  line-height: 1.28;
+  letter-spacing: -0.012em;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+
+.cell.right {
+  grid-column: 2;
+  color: var(--fg);
+  font-weight: 500;
+  border-bottom-color: color-mix(in oklab, var(--accent) 16%, transparent);
+}
+
+.cell.left {
+  color: var(--faint);
+}
+
+.cell.last {
+  border-bottom: none;
+}
+
+.cell.head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: calc(var(--s) * 26px);
+  padding-bottom: calc(var(--s) * 20px);
+  font-family: var(--mono);
+  font-size: calc(var(--s) * 19px);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.cell.head.left {
+  color: var(--faint);
+}
+
+.cell.head.right {
+  color: var(--hl);
+  border-bottom-color: color-mix(in oklab, var(--accent) 30%, transparent);
+}
+
+.ico {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 6px;
+  flex: none;
+}
+
+.ico svg {
+  width: 1.05em;
+  height: 1.05em;
+}
+
+.head.left .ico {
+  background: color-mix(in oklab, var(--fg) 7%, transparent);
+}
+
+.head.right .ico {
+  background: var(--primary);
+  color: #fff;
+}
+
+.cell.left em.hl {
+  color: var(--soft);
+}
+
+.portrait .headline {
+  font-size: calc(var(--s) * 84px);
+}
+
+.portrait .cell {
+  font-size: calc(var(--s) * 32px);
+  padding: calc(var(--s) * 24px) calc(var(--s) * 26px);
+}
+
+.portrait .cell.head {
+  font-size: calc(var(--s) * 19px);
+}
