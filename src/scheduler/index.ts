@@ -1,8 +1,10 @@
 // Stream C (publish/ops). Signatures of planSlots / tick / runDaemon are frozen (contracts-v1).
 import cron from "node-cron";
 import { loadProducts } from "../core/config.ts";
+import { track } from "../core/inflight.ts";
 import { log } from "../core/log.ts";
 import { pausedReason } from "../safety/pause.ts";
+import { collectMetrics } from "../x/index.ts";
 import { planProductSlots } from "./plan.ts";
 import { currentTick, recover, tick as runTick } from "./tick.ts";
 
@@ -46,8 +48,18 @@ export async function runDaemon(): Promise<void> {
     }
   };
 
+  const safeMetrics = async () => {
+    try {
+      log.info({ updated: await track(collectMetrics(7)) }, "metrics collected");
+    } catch (e) {
+      log.error({ err: (e as Error).message }, "metrics collection failed");
+    }
+  };
+
   const tickTask = cron.schedule("*/5 * * * *", safeTick, { name: "autocm-tick", timezone: "UTC", noOverlap: true });
   const planTask = cron.schedule("5 0 * * *", safePlan, { name: "autocm-plan", timezone: "UTC", noOverlap: true });
+  // Every 6 h, off the tick minutes. Shares each product's browser profile with publishing through the per-slug lock.
+  const metricsTask = cron.schedule("17 */6 * * *", safeMetrics, { name: "autocm-metrics", timezone: "UTC", noOverlap: true });
   await safeTick();
 
   await new Promise<void>((resolve) => {
@@ -56,9 +68,11 @@ export async function runDaemon(): Promise<void> {
       void (async () => {
         await tickTask.stop();
         await planTask.stop();
+        await metricsTask.stop();
         await currentTick()?.catch(() => undefined);
         await tickTask.destroy();
         await planTask.destroy();
+        await metricsTask.destroy();
         resolve();
       })();
     };

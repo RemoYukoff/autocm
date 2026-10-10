@@ -73,11 +73,34 @@ list (`pnpm autocm history` lists past posts).
 
 ## Connecting X
 
-1. Create an app at developer.x.com with Read and Write permissions, and generate OAuth 1.0a user tokens for the product's account.
-2. Put them in `products/<slug>/.env` (see `products/.env.example`). Check with `pnpm autocm x whoami <slug>`.
+autocm does not use the X API. Each product posts, reads its profile and reads post metrics through its own
+logged-in browser profile in `data/sessions/<slug>/`, driven by Playwright's full Chromium build: headed for
+the login, headless afterwards, with the same user agent in both so X sees one browser.
 
-From then on, posts publish to X on schedule. Until the credentials exist, posts are still generated and shown in
-the dashboard, but publishing is blocked by a guard (`no X credentials`); a blocked slot is skipped after 3 h.
+1. Connect the account, either from the dashboard or from the CLI **with the service stopped** (a browser profile
+   can only be open in one process, and the daemon uses it):
+
+   ```sh
+   systemctl --user stop autocm
+   pnpm autocm x connect <slug>    # a Chromium window opens at x.com/login: log in (2FA is fine) within 10 min
+   systemctl --user start autocm
+   ```
+
+   The window closes by itself once you are logged in. The handle, display name and avatar are saved (the avatar
+   goes to `products/<slug>/assets/x-profile-avatar.<ext>`). Closing the window before logging in cancels.
+2. Check it: `pnpm autocm x whoami <slug>` (service stopped, same reason). `pnpm autocm x metrics -d 7` reads
+   likes, reposts, replies, quotes, bookmarks and views of recent posts; the daemon does this every 6 h.
+3. To switch accounts or log out, disconnect from the dashboard: it deletes the profile and the account row.
+
+From then on, posts publish to X on schedule. Until an account is connected, posts are still generated and shown
+in the dashboard, but publishing is blocked by a guard (`X not connected`); a blocked slot is skipped after 3 h.
+
+- `data/sessions/` holds the X session cookies. It is gitignored: never commit, copy or share it.
+- A logged-out, locked or challenged session pauses publishing and shows the error on the account; reconnect.
+- A failed post saves a screenshot in `out/x-debug/<slug>/` (never the page HTML). A failure after the Post click
+  is never retried, because the post may be live: check the account on X before re-posting.
+- The X selectors and GraphQL response shapes live in `src/x/selectors.ts`. They have not been verified against
+  live X; when X changes its web app, fix them there.
 
 ## Safety rails
 
