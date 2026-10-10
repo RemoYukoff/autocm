@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>autocm</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23e8eaed'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-row">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">autocm</span>
+      </div>
+      <div class="status" id="status" aria-live="polite"></div>
+      <div class="top-actions">
+        <button class="btn" id="pause-btn" type="button"></button>
+        <button class="btn btn-primary" id="new-btn" type="button" aria-expanded="false" aria-controls="new-panel">New post</button>
+      </div>
+    </div>
+    <form class="new-panel" id="new-panel" hidden>
+      <label>Product <select id="new-product"></select></label>
+      <label>Format
+        <select id="new-format">
+          <option value="auto">Let the strategist choose</option>
+          <option value="text">Text</option>
+          <option value="image">Image</option>
+          <option value="video">Video</option>
+        </select>
+      </label>
+      <button class="btn btn-primary" type="submit">Generate</button>
+      <p class="hint">Takes 20 s to 3 min. The post lands in Ready and is not scheduled.</p>
+    </form>
+    <div class="quotas" id="quotas"></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" class="tab" data-tab="upcoming" aria-selected="true">Up next <span class="count" id="count-upcoming"></span></button>
+      <button role="tab" class="tab" data-tab="ready" aria-selected="false">Ready <span class="count" id="count-ready"></span></button>
+      <button role="tab" class="tab" data-tab="history" aria-selected="false">History <span class="count" id="count-history"></span></button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="view-upcoming" class="view" role="tabpanel">
+      <p class="lede" id="lede-upcoming">Posts publish automatically at their time unless you discard them.</p>
+      <ol class="timeline" id="upcoming"></ol>
+      <p class="empty" id="upcoming-empty" hidden>No slots planned. Run <code>pnpm autocm plan</code> or start the daemon.</p>
+    </section>
+    <section id="view-ready" class="view" role="tabpanel" hidden>
+      <p class="lede">Approved posts that no slot will publish. Publish one now or discard it.</p>
+      <div class="stack" id="ready"></div>
+      <p class="empty" id="ready-empty" hidden>Nothing waiting. Use New post to generate one.</p>
+    </section>
+    <section id="view-history" class="view" role="tabpanel" hidden>
+      <div class="stack" id="history"></div>
+      <p class="empty" id="history-empty" hidden>Nothing has gone out yet.</p>
+      <button class="btn more" id="history-more" type="button" hidden>Show older posts</button>
+    </section>
+  </main>
+
+  <div class="toasts" id="toasts" aria-live="assertive"></div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
