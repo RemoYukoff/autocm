@@ -1,7 +1,7 @@
 # autocm
 
 Autonomous X (Twitter) community manager. For each product in `products/<slug>/` it decides what to post
-(text, image or video), generates it, QA-checks it and publishes it on a schedule, with no human approval.
+(text, image or video), generates it and publishes it on a schedule, with no human approval (a local dashboard allows vetoing).
 
 ## Rules
 - Only modify files inside this repo. Other repos under `~/repos` are read-only references
@@ -11,16 +11,17 @@ Autonomous X (Twitter) community manager. For each product in `products/<slug>/`
   Change contracts only on `main`.
 - Never publish to X live during development. `AUTOCM_MODE=dry_run` is the default; live needs explicit OK from the user.
 - Never print or commit secrets. Per-product X creds go in `products/<slug>/.env` (gitignored).
-- LLM calls go through `src/llm.ts` only (`claude -p` on the user's subscription). Use `AUTOCM_LLM=fake` in tests.
+- LLM calls go through `src/llm.ts` only (Claude Agent SDK on the user's subscription). Use `AUTOCM_LLM=fake` in tests.
+- No LLM QA/critic stage: generated posts are approved unless X would refuse them (`src/agents/checks.ts`). The user vetoes from the dashboard.
 
 ## Stack
-TypeScript on Node 24 (ESM, run with `tsx`, no build), pnpm, `node:sqlite`, zod 4, Playwright (chromium),
+TypeScript on Node 24 (ESM, run with `tsx`, no build), pnpm, `node:sqlite`, zod 4, Claude Agent SDK, Hono, Playwright (chromium),
 Remotion 4, ffmpeg/ffprobe (system), twitter-api-v2, node-cron, pino, vitest.
 
 ## Commands
 - `pnpm autocm <cmd>` — CLI (`src/cli.ts`): products list|validate, generate, publish, plan, tick, run, pause, resume, history, render-fixture, x whoami, status.
 - `pnpm typecheck`, `pnpm test`.
-- `pnpm tsx scripts/llm-smoke.ts [image]` — check `claude -p` structured output and image reading.
+- `pnpm tsx scripts/llm-smoke.ts [image]` — check Agent SDK structured output and image reading.
 
 ## Layout
 - `products/<slug>/` product.yaml, knowledge/*.md, assets/ (logo, fonts, clips, screens)

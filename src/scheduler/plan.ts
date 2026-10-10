@@ -6,7 +6,8 @@ import { dayRangeUtc, localDate, zonedToUtc } from "../safety/time.ts";
 
 const MIN = 60_000;
 /** generate_at = scheduled_at - GENERATE_LEAD */
-export const GENERATE_LEAD_MIN = 45;
+/** Fallback when a product does not set cadence.generate_lead_min. */
+export const GENERATE_LEAD_MIN = 180;
 /** Never schedule a slot sooner than this from now (gives generation a chance to finish). */
 export const MIN_SCHEDULE_LEAD_MIN = 15;
 const SAMPLE_ATTEMPTS = 300;
@@ -119,7 +120,7 @@ export function planProductSlots(product: Product, days: number, now = new Date(
     const planned: string[] = [];
     for (const t of times) {
       const scheduled = new Date(t).toISOString();
-      const generate = new Date(t - GENERATE_LEAD_MIN * MIN).toISOString();
+      const generate = new Date(t - (c.cadence.generate_lead_min ?? GENERATE_LEAD_MIN) * MIN).toISOString();
       if (Number(insert.run(c.slug, scheduled, generate).changes) === 1) {
         created++;
         planned.push(scheduled);

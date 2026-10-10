@@ -1,15 +1,15 @@
-// Generation pipeline: strategist -> dedupe -> copywriter -> media -> critic, with bounded regeneration.
+// Generation pipeline: strategist -> dedupe -> copywriter -> media. No LLM review; only X hard limits are checked.
 import fs from "node:fs";
 import path from "node:path";
 import { checkDuplicate } from "./agents/dedupe.ts";
 import { writeDraft } from "./agents/copywriter.ts";
-import { critique } from "./agents/critic.ts";
+import { mediaIssues, textIssues } from "./agents/checks.ts";
 import { planBrief } from "./agents/strategist.ts";
 import { capabilitiesFor, loadProduct } from "./core/config.ts";
 import { getPost, insertPost, logEvent, recentPosts, updatePost } from "./core/db/index.ts";
 import { log } from "./core/log.ts";
 import { postOutDir } from "./core/paths.ts";
-import type { Brief, Draft, Format, MediaResult, PostRow, QAVerdict } from "./core/types.ts";
+import type { Brief, Draft, Format, MediaResult, PostRow } from "./core/types.ts";
 import { produceMedia } from "./media/index.ts";
 import { textHash } from "./safety/text.ts";
 
@@ -19,13 +19,13 @@ export interface GenerateOptions {
   slotId?: number;
 }
 
-/** Regeneration rounds after the first attempt fails QA. */
-const MAX_QA_ROUNDS = 3;
+/** Copy rewrites when the tweet does not fit in 280 weighted chars. */
+const MAX_REWRITES = 2;
 const MAX_DEDUPE_RETRIES = 2;
 
 /**
- * Full generation for one post: strategist -> dedupe -> copywriter -> media -> critic (with regenerations).
- * Leaves the post `approved` (ready to publish) or `rejected`. Never publishes.
+ * Full generation for one post: strategist -> dedupe -> copywriter -> media.
+ * Leaves the post `approved` (ready to publish), or `failed` if X would refuse it. Never publishes.
  */
 export async function generatePost(productSlug: string, opts: GenerateOptions = {}): Promise<PostRow> {
   const product = loadProduct(productSlug);
@@ -47,7 +47,7 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
         const b = await planBrief({ product, caps, history, format: opts.format, avoid, postId });
         const dup = await checkDuplicate(product, b, history, postId);
         if (!dup.duplicate || i >= MAX_DEDUPE_RETRIES) {
-          if (dup.duplicate) plog.warn({ angle: b.angle }, "still duplicate after retries; QA will judge");
+          if (dup.duplicate) plog.warn({ angle: b.angle }, "still duplicate after retries; keeping the last idea");
           return b;
         }
         plog.info({ angle: b.angle, of: dup.of_post_id, reason: dup.reason }, "duplicate idea, re-planning");
@@ -56,45 +56,22 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
       }
     };
 
-    let brief = await newBrief();
+    const brief = await newBrief();
     let draft: Draft = await writeDraft({ product, brief, history, postId });
-    let media: MediaResult = await produceMedia(brief, draft, product, caps, outDir);
-    let verdict: QAVerdict = { pass: false, score: 0, issues: [], fix: "new_brief", visual_qa: "skipped" };
-    const rounds: unknown[] = [];
-
-    for (let round = 0; round <= MAX_QA_ROUNDS; round++) {
-      updatePost(postId, { attempts: round + 1 });
-      verdict = await critique({ product, brief, draft, media, history, postId });
-      rounds.push({ round, brief, draft, media_kind: media.kind, verdict });
-      plog.info({ round, score: verdict.score, pass: verdict.pass, fix: verdict.fix, issues: verdict.issues }, "qa");
-      if (verdict.pass || round === MAX_QA_ROUNDS) break;
-
-      if (verdict.fix === "new_brief") {
-        avoid.push(brief.angle);
-        brief = await newBrief();
-        draft = await writeDraft({ product, brief, history, postId });
-        media = await produceMedia(brief, draft, product, caps, outDir);
-      } else if (verdict.fix === "rewrite_text") {
-        draft = await writeDraft({ product, brief, history, feedback: verdict.issues, previous: draft, postId });
-        // The media carries the draft's media_copy, so re-render it too.
-        if (brief.media_kind !== "none") media = await produceMedia(brief, draft, product, caps, outDir);
-      } else if (brief.media_kind === "ai_image" || brief.media_kind === "ai_video") {
-        // Generative media differs on every run, so a plain re-render can fix it.
-        media = await produceMedia(brief, draft, product, caps, outDir);
-      } else {
-        // Templates and Remotion are deterministic: the same copy renders the same frames, so fix the copy.
-        draft = await writeDraft({ product, brief, history, feedback: verdict.issues, previous: draft, postId });
-        media = await produceMedia(brief, draft, product, caps, outDir);
-      }
+    // Only rule enforced on the text: it must fit in a tweet.
+    for (let i = 0; i < MAX_REWRITES && textIssues(draft).length; i++) {
+      draft = await writeDraft({ product, brief, history, feedback: textIssues(draft), previous: draft, postId });
     }
+    const media: MediaResult = await produceMedia(brief, draft, product, caps, outDir);
+    const issues = [...textIssues(draft), ...mediaIssues(brief, media)];
+    updatePost(postId, { attempts: 1 });
 
     save("brief.json", brief);
     save("draft.json", draft);
     save("media.json", media);
-    save("qa.json", { final: verdict, rounds });
 
     updatePost(postId, {
-      status: verdict.pass ? "approved" : "rejected",
+      status: issues.length ? "failed" : "approved",
       pillar: brief.pillar,
       angle: brief.angle,
       format: brief.format,
@@ -103,11 +80,10 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
       alt_text: draft.alt_text ?? null,
       media_json: JSON.stringify(media),
       brief_json: JSON.stringify(brief),
-      qa_json: JSON.stringify(verdict),
       text_hash: textHash(draft.text),
-      error: verdict.pass ? null : `QA rejected: ${verdict.issues.join("; ").slice(0, 500)}`,
+      error: issues.length ? `Not publishable on X: ${issues.join("; ").slice(0, 500)}` : null,
     });
-    logEvent(verdict.pass ? "post_approved" : "post_rejected", { product: productSlug, post_id: postId, payload: verdict });
+    logEvent(issues.length ? "post_unpublishable" : "post_approved", { product: productSlug, post_id: postId, payload: { issues } });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     plog.error({ err: msg }, "generation failed");

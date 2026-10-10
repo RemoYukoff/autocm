@@ -40,7 +40,6 @@ export function writeDryRunPreview(post: PostRow, product: Product, at = new Dat
   const len = weightedLength(text);
   const files = postMediaFiles(post);
   const brief = parseJson<Record<string, unknown>>(post.brief_json);
-  const qa = parseJson<{ pass?: boolean; score?: number; issues?: string[]; fix?: string; visual_qa?: string }>(post.qa_json);
 
   const lines: string[] = [
     `# ${product.config.name} — post #${post.id} (dry run)`,
@@ -76,12 +75,6 @@ export function writeDryRunPreview(post: PostRow, product: Product, at = new Dat
     lines.push("");
   } else if (post.angle) {
     lines.push("## Brief", "", `- angle: ${post.angle}`, "");
-  }
-
-  if (qa) {
-    lines.push("## QA", "", `- pass: ${qa.pass ?? "-"} · score: ${qa.score ?? "-"} · visual_qa: ${qa.visual_qa ?? "-"}`);
-    for (const i of qa.issues ?? []) lines.push(`- issue: ${i}`);
-    lines.push("");
   }
 
   fs.writeFileSync(file, lines.filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n"));
