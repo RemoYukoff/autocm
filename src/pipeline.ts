@@ -78,7 +78,12 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
         draft = await writeDraft({ product, brief, history, feedback: verdict.issues, previous: draft, postId });
         // The media carries the draft's media_copy, so re-render it too.
         if (brief.media_kind !== "none") media = await produceMedia(brief, draft, product, caps, outDir);
+      } else if (brief.media_kind === "ai_image" || brief.media_kind === "ai_video") {
+        // Generative media differs on every run, so a plain re-render can fix it.
+        media = await produceMedia(brief, draft, product, caps, outDir);
       } else {
+        // Templates and Remotion are deterministic: the same copy renders the same frames, so fix the copy.
+        draft = await writeDraft({ product, brief, history, feedback: verdict.issues, previous: draft, postId });
         media = await produceMedia(brief, draft, product, caps, outDir);
       }
     }

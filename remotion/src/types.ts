@@ -48,6 +48,8 @@ export type ClipCaptionProps = {
     duration: number;
   };
   headline: Word[];
+  /** Seconds of title card (headline) before the clip plays unobstructed. */
+  intro: number;
   endCard: number;
   total: number;
 };
