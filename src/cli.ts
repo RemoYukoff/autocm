@@ -93,7 +93,9 @@ program
   .description("Local web dashboard: preview upcoming posts, veto, regenerate, publish now")
   .option("-p, --port <port>", "port", String(DEFAULT_PORT))
   .action((o: { port: string }) => {
-    startDashboard(portArg(o.port));
+    startDashboard(portArg(o.port), () => {
+      process.exitCode = 1;
+    });
   });
 
 program.command("pause [reason...]").description("Stop all publishing").action((reason: string[] = []) => {

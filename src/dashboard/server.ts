@@ -222,10 +222,15 @@ export function createApp(): Hono {
   return app;
 }
 
-/** Start the dashboard on 127.0.0.1:<port>. */
-export function startDashboard(port = DEFAULT_PORT): ServerType {
+/** Start the dashboard on 127.0.0.1:<port>. A bind failure is logged, never thrown (the daemon keeps running). */
+export function startDashboard(port = DEFAULT_PORT, onError?: (e: Error) => void): ServerType {
   const app = createApp();
-  return serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
+  const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
     log.info({ url: `http://127.0.0.1:${info.port}` }, "dashboard listening");
   });
+  server.on("error", (e: Error) => {
+    log.error({ port, err: e.message }, "dashboard could not start");
+    onError?.(e);
+  });
+  return server;
 }
