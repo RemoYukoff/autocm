@@ -1,4 +1,4 @@
-// Preview frames for visual QA: PNG stills at fixed fractions of the video.
+// Preview frames for the dashboard: PNG stills at fixed fractions of the video.
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";

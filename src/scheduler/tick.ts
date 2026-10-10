@@ -14,7 +14,6 @@ export interface SlotRow {
   id: number;
   product: string;
   scheduled_at: string;
-  generate_at: string;
   status: SlotStatus;
   post_id: number | null;
   claimed_at: string | null;
@@ -55,7 +54,7 @@ export function recover(now = new Date()): { slots: number; posts: number } {
       setSlot(slot.id, "generated", post.id);
       slotEvent("slot_recovered", slot, { to: "generated" }, post.id);
     } else {
-      if (post && (post.status === "generating" || post.status === "planned")) {
+      if (post && post.status === "generating") {
         updatePost(post.id, { status: "failed", error: "generation stalled > 30 min (recovered by scheduler)" });
       }
       setSlot(slot.id, "failed", post?.id ?? null);
@@ -82,12 +81,10 @@ export function recover(now = new Date()): { slots: number; posts: number } {
   return { slots, posts };
 }
 
-/** Claim and generate due slots, one at a time. */
+/** Claim and generate every pending slot, soonest first, one at a time. */
 async function generateDue(token: string): Promise<void> {
   const db = getDb();
-  const due = db
-    .prepare("SELECT * FROM slots WHERE status = 'pending' AND generate_at <= ? ORDER BY generate_at")
-    .all(nowIso()) as unknown as SlotRow[];
+  const due = db.prepare("SELECT * FROM slots WHERE status = 'pending' ORDER BY scheduled_at").all() as unknown as SlotRow[];
   if (!due.length) return;
 
   const paused = pausedReason();
@@ -136,7 +133,7 @@ async function generateDue(token: string): Promise<void> {
       }
     } catch (e) {
       const post = postForSlot(slot);
-      if (post && (post.status === "generating" || post.status === "planned")) {
+      if (post && post.status === "generating") {
         updatePost(post.id, { status: "failed", error: `generation error: ${(e as Error).message}` });
       }
       setSlot(slot.id, "failed", post?.id ?? null);

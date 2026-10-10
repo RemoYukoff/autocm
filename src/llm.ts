@@ -10,18 +10,13 @@ import { env } from "./core/env.ts";
 import { log } from "./core/log.ts";
 import { FIXTURES_DIR } from "./core/paths.ts";
 
-export type Model = "haiku" | "sonnet" | "opus";
+export type Model = "haiku" | "sonnet";
 
 export interface CallOptions {
   /** Pipeline stage name; used for logging and FakeLLM fixtures. */
   stage: string;
   model?: Model;
   system?: string;
-  /** Tools the model may use. Only "Read" makes sense here (to look at images). */
-  tools?: "Read"[];
-  /** Working directory for the CLI. Files the model must Read should live under it or addDirs. */
-  cwd?: string;
-  addDirs?: string[];
   postId?: number;
   timeoutMs?: number;
 }
@@ -66,8 +61,7 @@ export async function callJson<S extends z.ZodType>(schema: S, prompt: string, o
 // ---------- Agent SDK adapter ----------
 
 const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
-  const cwd = opts.cwd ?? fs.mkdtempSync(path.join(os.tmpdir(), "autocm-llm-"));
-  const tools = opts.tools ?? [];
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "autocm-llm-"));
   // Without this, an API key in the environment would win over the subscription login.
   const childEnv: Record<string, string | undefined> = { ...process.env };
   delete childEnv.ANTHROPIC_API_KEY;
@@ -82,15 +76,13 @@ const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
         model: opts.model ?? "sonnet",
         systemPrompt: opts.system ?? DEFAULT_SYSTEM,
         outputFormat: { type: "json_schema", schema: jsonSchema as Record<string, unknown> },
-        tools,
-        allowedTools: tools,
-        additionalDirectories: opts.addDirs,
+        tools: [],
         // Keep the user's own settings, hooks, CLAUDE.md, plugins and MCP servers out of the prompt.
         settingSources: [],
         mcpServers: {},
         strictMcpConfig: true,
         persistSession: false,
-        maxTurns: tools.length ? 12 : 4,
+        maxTurns: 4,
         env: childEnv,
         abortController: abort,
       },

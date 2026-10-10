@@ -1,6 +1,5 @@
 // Builds the shared context every agent sees: product brief, voice, knowledge and posting history.
 import type { Capabilities, Format, MediaKind, PostRow, Product } from "../core/types.ts";
-import { KIND_FORMAT } from "../core/types.ts";
 
 const DAY_MS = 86_400_000;
 
@@ -82,10 +81,10 @@ export function historyContext(history: PostRow[], limit = 30): string {
     .join("\n");
 }
 
-/** Media kinds that can actually be produced right now, optionally restricted to one format. */
-export function availableKinds(caps: Capabilities, format?: Format): MediaKind[] {
+/** Media kinds that can actually be produced right now. */
+export function availableKinds(caps: Capabilities): MediaKind[] {
   const all: MediaKind[] = ["none", "template", "ai_image", "remotion", "clip", "ai_video"];
-  return all.filter((k) => (k === "none" || caps[k as keyof Capabilities]) && (!format || KIND_FORMAT[k] === format));
+  return all.filter((k) => k === "none" || caps[k as keyof Capabilities]);
 }
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;

@@ -1,13 +1,11 @@
 // Stream C (publish/ops). Signatures of planSlots / tick / runDaemon are frozen (contracts-v1).
 import cron from "node-cron";
 import { loadProducts } from "../core/config.ts";
-import { env } from "../core/env.ts";
 import { log } from "../core/log.ts";
 import { pausedReason } from "../safety/pause.ts";
 import { planProductSlots } from "./plan.ts";
 import { currentTick, recover, tick as runTick } from "./tick.ts";
 
-export { recover } from "./tick.ts";
 export type { SlotRow, SlotStatus } from "./tick.ts";
 
 /** Create slots for the next `days` days for every enabled product. Returns number created. */

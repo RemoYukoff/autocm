@@ -9,13 +9,11 @@ import { capabilitiesFor, loadProduct } from "./core/config.ts";
 import { getPost, insertPost, logEvent, recentPosts, updatePost } from "./core/db/index.ts";
 import { log } from "./core/log.ts";
 import { postOutDir } from "./core/paths.ts";
-import type { Brief, Draft, Format, MediaResult, PostRow } from "./core/types.ts";
+import type { Brief, Draft, MediaResult, PostRow } from "./core/types.ts";
 import { produceMedia } from "./media/index.ts";
 import { textHash } from "./safety/text.ts";
 
 export interface GenerateOptions {
-  /** Force a format instead of letting the strategist decide. */
-  format?: Format;
   slotId?: number;
 }
 
@@ -35,7 +33,6 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
   const postId = row.id;
   const outDir = postOutDir(productSlug, postId);
   fs.mkdirSync(outDir, { recursive: true });
-  updatePost(postId, { out_dir: outDir });
   const save = (name: string, data: unknown) => fs.writeFileSync(path.join(outDir, name), JSON.stringify(data, null, 2));
   const plog = log.child({ product: productSlug, post: postId });
 
@@ -44,7 +41,7 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
 
     const newBrief = async (): Promise<Brief> => {
       for (let i = 0; ; i++) {
-        const b = await planBrief({ product, caps, history, format: opts.format, avoid, postId });
+        const b = await planBrief({ product, caps, history, avoid, postId });
         const dup = await checkDuplicate(product, b, history, postId);
         if (!dup.duplicate || i >= MAX_DEDUPE_RETRIES) {
           if (dup.duplicate) plog.warn({ angle: b.angle }, "still duplicate after retries; keeping the last idea");

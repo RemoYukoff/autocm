@@ -58,7 +58,6 @@ export function parseHighlights(text: string, highlightWords: string[] = []): Se
   return out;
 }
 
-export const plainText = (segs: Segment[]) => segs.map((s) => s.text).join("");
 
 /** Segments to words (whitespace-separated), each keeping its highlight flag. */
 export function toWords(segs: Segment[]): Word[] {

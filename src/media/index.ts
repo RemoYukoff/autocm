@@ -51,7 +51,7 @@ function fallback(r: MediaResult, from: MediaKind, why: string): MediaResult {
 /**
  * Produce the media for a post into `outDir`. For brief.media_kind "none" returns no files.
  * Must fall back (ai_image -> template, ai_video -> remotion) instead of throwing when a provider fails,
- * and set `fallback_from`. `preview_frames` must hold PNGs for visual QA (the image itself, or ~5 video frames).
+ * and set `fallback_from`. `preview_frames` must hold PNGs for the dashboard preview (the image itself, or ~5 video frames).
  */
 export async function produceMedia(brief: Brief, draft: Draft, product: Product, caps: Capabilities, outDir: string): Promise<MediaResult> {
   if (brief.media_kind === "none") return { kind: "none", files: [], preview_frames: [], notes: [] };

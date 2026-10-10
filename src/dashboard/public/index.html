@@ -17,45 +17,17 @@
       <div class="status" id="status" aria-live="polite"></div>
       <div class="top-actions">
         <button class="btn" id="pause-btn" type="button"></button>
-        <button class="btn btn-primary" id="new-btn" type="button" aria-expanded="false" aria-controls="new-panel">New post</button>
       </div>
     </div>
-    <form class="new-panel" id="new-panel" hidden>
-      <label>Product <select id="new-product"></select></label>
-      <label>Format
-        <select id="new-format">
-          <option value="auto">Let the strategist choose</option>
-          <option value="text">Text</option>
-          <option value="image">Image</option>
-          <option value="video">Video</option>
-        </select>
-      </label>
-      <button class="btn btn-primary" type="submit">Generate</button>
-      <p class="hint">Takes 20 s to 3 min. The post lands in Ready and is not scheduled.</p>
-    </form>
     <div class="quotas" id="quotas"></div>
-    <nav class="tabs" role="tablist">
-      <button role="tab" class="tab" data-tab="upcoming" aria-selected="true">Up next <span class="count" id="count-upcoming"></span></button>
-      <button role="tab" class="tab" data-tab="ready" aria-selected="false">Ready <span class="count" id="count-ready"></span></button>
-      <button role="tab" class="tab" data-tab="history" aria-selected="false">History <span class="count" id="count-history"></span></button>
-    </nav>
   </header>
 
   <main>
-    <section id="view-upcoming" class="view" role="tabpanel">
+    <section id="view-upcoming" class="view">
+      <h1 class="view-title">Up next <span class="count" id="count-upcoming"></span></h1>
       <p class="lede" id="lede-upcoming">Posts publish automatically at their time unless you discard them.</p>
       <ol class="timeline" id="upcoming"></ol>
-      <p class="empty" id="upcoming-empty" hidden>No slots planned. Run <code>pnpm autocm plan</code> or start the daemon.</p>
-    </section>
-    <section id="view-ready" class="view" role="tabpanel" hidden>
-      <p class="lede">Approved posts that no slot will publish. Publish one now or discard it.</p>
-      <div class="stack" id="ready"></div>
-      <p class="empty" id="ready-empty" hidden>Nothing waiting. Use New post to generate one.</p>
-    </section>
-    <section id="view-history" class="view" role="tabpanel" hidden>
-      <div class="stack" id="history"></div>
-      <p class="empty" id="history-empty" hidden>Nothing has gone out yet.</p>
-      <button class="btn more" id="history-more" type="button" hidden>Show older posts</button>
+      <p class="empty" id="upcoming-empty" hidden>Nothing planned. The scheduler plans each day at 00:05 UTC.</p>
     </section>
   </main>
 

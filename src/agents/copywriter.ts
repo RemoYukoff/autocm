@@ -60,7 +60,7 @@ ${needsMedia ? `- The text must work together with the ${brief.format}, not repe
 ${MEDIA_COPY_GUIDE[guideKey] ?? MEDIA_COPY_GUIDE.statement}
 Wrap 1-2 key words in *asterisks* to highlight them in brand color, and list them in highlight_words.` : "- This is a text-only post: omit alt_text and media_copy."}
 ${previous ? `\n# Previous draft (rejected)\n${JSON.stringify(previous, null, 2)}` : ""}
-${feedback.length ? `\n# Fix these issues from review\n${feedback.map((f) => `- ${f}`).join("\n")}` : ""}`;
+${feedback.length ? `\n# Fix these issues\n${feedback.map((f) => `- ${f}`).join("\n")}` : ""}`;
 
   const draft = await callJson(DraftSchema, prompt, { stage: "copywriter", model: "sonnet", postId: input.postId });
   return finalizeDraft(draft, brief, product);

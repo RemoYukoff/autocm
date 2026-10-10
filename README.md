@@ -26,8 +26,7 @@ settings, hooks, plugins and MCP servers disabled for those calls.
 pnpm install
 cp .env.example .env
 pnpm autocm products validate
-pnpm autocm generate acme              # one post, format chosen by the strategist
-pnpm autocm generate acme -f video     # force a format
+pnpm autocm run --dashboard              # plan, write and publish on schedule; veto at http://127.0.0.1:4321
 pnpm autocm history acme
 ```
 
@@ -36,8 +35,8 @@ Generated artifacts land in `out/<product>/<date>/<postId>/` (brief, draft, medi
 ## Running on a schedule
 
 ```sh
-pnpm autocm plan -d 2    # create posting slots inside each product's windows
-pnpm autocm tick         # one pass: generate due slots (cadence.generate_lead_min before, default 3 h), publish due posts
+pnpm autocm plan -d 2    # create posting slots inside each product's windows (they are due for writing at once)
+pnpm autocm tick         # one pass: write due slots, publish due posts
 pnpm autocm run          # daemon: tick every 5 min, plan daily
 ```
 
@@ -66,10 +65,11 @@ pnpm autocm run --dashboard     # scheduler + dashboard in one process (recommen
 pnpm autocm dashboard           # dashboard only, http://127.0.0.1:4321
 ```
 
-Shows upcoming slots with an X-style preview of each generated post (text, image or video), ready posts and
-history. Actions: discard (veto), skip a slot, regenerate (optionally forcing a format), publish now (guards
-still apply), generate a new post, pause/resume. Without a veto, posts publish on schedule. Posts are generated
-`cadence.generate_lead_min` (default 180) minutes before their slot, which is the review window.
+Shows only what the bot is about to publish: each planned slot with an X-style preview of its post (text, image
+or video). Every day the scheduler picks how many posts to make (`cadence.posts_per_day_min` to `posts_per_day_max`)
+and when, and writes them right away, so they are visible hours before they go out. The only actions are
+discard (veto) and pause/resume. Without a veto, posts publish on schedule. Once published, a post leaves the
+list (`pnpm autocm history` lists past posts).
 
 ## Connecting X
 
@@ -94,4 +94,4 @@ See `products/README.md`. A product is a folder: `product.yaml`, `knowledge/*.md
 ## Development
 
 `pnpm typecheck`, `pnpm test` (vitest, uses `AUTOCM_LLM=fake`), `pnpm autocm render-fixture fixtures/media/<file>.json`,
-`pnpm tsx scripts/llm-smoke.ts [image]`.
+`pnpm tsx scripts/llm-smoke.ts`.

@@ -3,7 +3,7 @@ const REFRESH_MS = 15_000;
 const FAST_REFRESH_MS = 3_000;
 
 const $ = (sel) => document.querySelector(sel);
-const state = { data: null, history: [], historyTotal: 0, tab: "upcoming", busy: new Set(), products: new Map() };
+const state = { data: null, busy: new Set(), products: new Map() };
 const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const LOCALE = "en-GB"; // the UI copy is English; keep dates in English too
 
@@ -69,14 +69,6 @@ function countdown(iso) {
   return ms >= 0 ? `in ${duration(ms)}` : `${duration(ms)} ago`;
 }
 
-function relative(iso) {
-  const ms = Date.now() - Date.parse(iso);
-  if (ms < 60_000) return "now";
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h`;
-  return new Intl.DateTimeFormat(LOCALE, { day: "numeric", month: "short" }).format(new Date(iso));
-}
-
 // ---------- api ----------
 
 async function api(method, url, body) {
@@ -119,7 +111,7 @@ function mediaHtml(post) {
   return `<div class="tw-media-wrap">${items}</div>`;
 }
 
-/** `when`: a fixed label (scheduled time), or {ago: iso} for an X-style relative time kept fresh by tickClocks. */
+/** `when`: the scheduled time label shown after the handle. */
 function tweetCard(post, when) {
   const p = product(post.product);
   const initial = (p.name || p.slug).trim().charAt(0).toUpperCase();
@@ -128,7 +120,7 @@ function tweetCard(post, when) {
   return `<article class="tw" aria-label="Post preview">
     <div class="tw-avatar" style="--av:${esc(p.color)}" aria-hidden="true">${esc(initial)}</div>
     <div class="tw-body">
-      <div class="tw-head"><span class="tw-name">${esc(p.name)}</span><span class="tw-handle">${esc(handle)}${typeof when === "string" ? ` · ${esc(when)}` : when?.ago ? ` · <span data-rel="${esc(when.ago)}"></span>` : ""}</span></div>
+      <div class="tw-head"><span class="tw-name">${esc(p.name)}</span><span class="tw-handle">${esc(handle)} · ${esc(when)}</span></div>
       ${text}
       ${mediaHtml(post)}
     </div>
@@ -157,40 +149,27 @@ function btn(action, label, id, opts = {}) {
   return `<button type="button" class="btn ${opts.cls ?? ""}" data-action="${action}" data-id="${id}" ${busy ? "disabled" : ""}>${busy ? opts.busyLabel ?? "Working…" : label}</button>`;
 }
 
-function formatSelect(id) {
-  return `<select class="fmt" data-format-for="${id}" aria-label="Format for the new version">
-    <option value="auto">Any format</option><option value="text">Text</option><option value="image">Image</option><option value="video">Video</option>
-  </select>`;
-}
-
-function jobForSlot(slotId) {
-  return (state.data?.jobs ?? []).find((j) => j.slot_id === slotId && j.status === "running");
-}
-
 const SLOT_STATUS = {
-  pending: ["Not written yet", "neutral"],
+  pending: ["Queued", "neutral"],
   claimed: ["Writing", "busy"],
   generated: ["Will publish", "go"],
-  skipped: ["Skipped", "stop"],
-  failed: ["Failed", "stop"],
-  done: ["Published", "go"],
 };
 
 function slotHtml(slot) {
   const p = product(slot.product);
   const post = slot.post;
-  let [statusLabel, tone] = SLOT_STATUS[slot.status] ?? [slot.status, "neutral"];
+  let [statusLabel, tone] = SLOT_STATUS[slot.status];
   if (slot.status === "generated" && state.data?.paused) [statusLabel, tone] = ["On hold: paused", "neutral"];
-  if (slot.status === "skipped" && post?.error?.includes("vetoed")) statusLabel = "Vetoed";
   const sameTz = p.timezone === localTz;
   const late = Date.parse(slot.scheduled_at) < Date.now();
-  const job = jobForSlot(slot.id);
 
   let body;
   if (slot.status === "pending") {
-    body = `<div class="placeholder"><p>Writes itself at <strong>${esc(fmtTime(slot.generate_at, p.timezone, false))} ${esc(tzAbbr(slot.generate_at, p.timezone))}</strong> <span class="muted">(<span data-countdown="${esc(slot.generate_at)}"></span>)</span>.</p><p class="muted">You can write it now to review it earlier, or skip this slot.</p></div>`;
+    body = state.data?.paused
+      ? `<div class="placeholder"><p class="muted">Publishing is paused, so the bot is not writing this post yet.</p></div>`
+      : `<div class="placeholder"><p class="muted">The bot writes this post on its next pass (every 5 min).</p></div>`;
   } else if (slot.status === "claimed") {
-    const since = job?.started_at ?? slot.claimed_at;
+    const since = slot.claimed_at;
     body = `<div class="placeholder writing"><span class="spinner" aria-hidden="true"></span><p>Writing the post${since ? ` <span class="muted" data-since="${esc(since)}"></span>` : ""}. This takes 20 s to 3 min.</p></div>`;
   } else if (post) {
     body = tweetCard(post, fmtTime(slot.scheduled_at, p.timezone, false));
@@ -199,19 +178,8 @@ function slotHtml(slot) {
   }
 
   let note = "";
-  if ((slot.status === "skipped" || slot.status === "failed") && post?.error) note = `<p class="${post.error.includes("vetoed") ? "note" : "warn"}">${esc(post.error)}</p>`;
   if (slot.status === "generated" && late) note = `<p class="warn">Past its time. The scheduler retries every 5 min${post?.error ? `: ${esc(post.error)}` : ""}.</p>`;
-
-  let actions = "";
-  if (slot.status === "generated" && post) {
-    actions = btn("publish", "Publish now", post.id, { cls: "btn-primary", busyLabel: "Publishing…" }) +
-      `<span class="regen">${btn("regenerate", "Regenerate", slot.id, { busyLabel: "Starting…" })}${formatSelect(slot.id)}</span>` +
-      btn("discard", "Discard", post.id, { cls: "btn-danger", busyLabel: "Discarding…" });
-  } else if (slot.status === "pending") {
-    actions = `<span class="regen">${btn("regenerate", "Write now", slot.id, { busyLabel: "Starting…" })}${formatSelect(slot.id)}</span>` + btn("skip", "Skip slot", slot.id, { cls: "btn-danger" });
-  } else if (slot.status === "skipped" || slot.status === "failed") {
-    actions = `<span class="regen">${btn("regenerate", "Write a new post", slot.id, { busyLabel: "Starting…" })}${formatSelect(slot.id)}</span>`;
-  }
+  const actions = slot.status === "generated" && post ? btn("discard", "Discard", post.id, { cls: "btn-danger", busyLabel: "Discarding…" }) : "";
 
   const soon = !late && Date.parse(slot.scheduled_at) - Date.now() < 3_600_000 && slot.status === "generated";
   return `<li class="slot tone-${tone}${soon ? " soon" : ""}" data-key="slot-${slot.id}">
@@ -229,40 +197,6 @@ function slotHtml(slot) {
       ${actions ? `<div class="actions">${actions}</div>` : ""}
     </aside>
   </li>`;
-}
-
-function readyHtml(post) {
-  return `<div class="row" data-key="post-${post.id}">
-    <div class="row-main">${tweetCard(post, { ago: post.created_at })}</div>
-    <aside class="slot-side">
-      <div class="slot-head"><span class="pill pill-neutral">Unscheduled</span><span class="muted small">#${post.id} · made <span data-ago="${esc(post.created_at)}"></span></span></div>
-      ${metaHtml(post)}
-      <div class="actions">${btn("publish", "Publish now", post.id, { cls: "btn-primary", busyLabel: "Publishing…" })}${btn("discard", "Discard", post.id, { cls: "btn-danger", busyLabel: "Discarding…" })}</div>
-    </aside>
-  </div>`;
-}
-
-const HISTORY_STATUS = {
-  published: ["Live on X", "go"],
-  rejected: ["Discarded", "stop"],
-  failed: ["Failed", "stop"],
-  qa_failed: ["Failed QA", "stop"],
-};
-
-function historyHtml(post) {
-  const [label, tone] = HISTORY_STATUS[post.status] ?? [post.status, "neutral"];
-  const when = post.published_at ?? post.updated_at;
-  const link = post.url && post.status === "published" ? `<a class="btn" href="${esc(post.url)}" target="_blank" rel="noopener noreferrer">Open on X</a>` : "";
-  const err = post.error && post.status !== "published" ? `<p class="${post.status === "rejected" ? "note" : "warn"}">${esc(post.error)}</p>` : "";
-  return `<div class="row" data-key="hist-${post.id}">
-    <div class="row-main">${post.text || post.media.length ? tweetCard(post, { ago: when }) : `<div class="placeholder"><p class="muted">No content was produced.</p></div>`}</div>
-    <aside class="slot-side">
-      <div class="slot-head"><span class="pill pill-${tone}">${esc(label)}</span><span class="muted small">#${post.id} · ${esc(fmtTime(when, localTz))}</span></div>
-      ${metaHtml(post)}
-      ${err}
-      ${link ? `<div class="actions">${link}</div>` : ""}
-    </aside>
-  </div>`;
 }
 
 // ---------- keyed rendering (keeps playing videos alive across refreshes) ----------
@@ -285,9 +219,6 @@ function reconcile(container, items, keyOf, html) {
         const oldVid = el.querySelector("video");
         const newVid = fresh.querySelector("video");
         if (oldVid && newVid && oldVid.getAttribute("src") === newVid.getAttribute("src")) newVid.replaceWith(oldVid);
-        const oldSel = el.querySelector("select.fmt");
-        const newSel = fresh.querySelector("select.fmt");
-        if (oldSel && newSel) newSel.value = oldSel.value;
         el.replaceWith(fresh);
       }
       el = fresh;
@@ -300,14 +231,14 @@ function reconcile(container, items, keyOf, html) {
 // ---------- render ----------
 
 function renderHeader(d) {
-  const noCreds = d.products.filter((p) => p.enabled && !p.live).map((p) => p.name);
-  const mode = noCreds.length
-    ? `<span class="pill pill-stop" title="Add X credentials in products/<slug>/.env">No X credentials: ${esc(noCreds.join(", "))}</span>`
+  const notConnected = d.products.filter((p) => p.enabled && !p.live).map((p) => p.name);
+  const mode = notConnected.length
+    ? `<span class="pill pill-stop" title="pnpm autocm x connect <slug>">X not connected: ${esc(notConnected.join(", "))}</span>`
     : "";
   const paused = d.paused
     ? `<span class="pill pill-stop">Paused</span><span class="muted small" title="${esc(d.paused)}">${esc(d.paused)}</span>`
     : `<span class="pill pill-go">Publishing on</span>`;
-  const running = d.jobs.filter((j) => j.status === "running").length;
+  const running = d.upcoming.filter((s) => s.status === "claimed").length;
   $("#status").innerHTML = `${mode}${paused}${running ? `<span class="pill pill-busy"><span class="spinner sm" aria-hidden="true"></span>${running} writing</span>` : ""}`;
   const pb = $("#pause-btn");
   pb.textContent = d.paused ? "Resume publishing" : "Pause publishing";
@@ -317,7 +248,7 @@ function renderHeader(d) {
   $("#quotas").innerHTML = d.products
     .map((p) => {
       const pct = p.daily_cap ? Math.min(100, (p.today_count / p.daily_cap) * 100) : 100;
-      const live = p.live ? "connected to X" : "no X credentials";
+      const live = p.live ? "connected to X" : "X not connected";
       return `<div class="quota${p.enabled ? "" : " off"}" title="${esc(p.name)}: ${p.today_count} of ${p.daily_cap} posts today (${esc(p.timezone)}), ${live}">
         <span class="quota-name">${esc(p.name)}</span>
         <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>
@@ -325,19 +256,6 @@ function renderHeader(d) {
       </div>`;
     })
     .join("");
-
-  const sel = $("#new-product");
-  const want = d.products.map((p) => p.slug).join(",");
-  if (sel.dataset.list !== want) {
-    const prev = sel.value;
-    sel.innerHTML = d.products.map((p) => `<option value="${esc(p.slug)}">${esc(p.name)}</option>`).join("");
-    if (prev) sel.value = prev;
-    sel.dataset.list = want;
-  }
-  const genBusy = d.jobs.some((j) => j.kind === "generate" && j.status === "running" && j.product === sel.value);
-  const submit = $("#new-panel button[type=submit]");
-  submit.disabled = genBusy || state.busy.has("generate");
-  submit.textContent = genBusy ? "Writing…" : "Generate";
 }
 
 function render() {
@@ -347,28 +265,16 @@ function render() {
   renderHeader(d);
   reconcile($("#upcoming"), d.upcoming, (s) => `slot-${s.id}`, slotHtml);
   $("#upcoming-empty").hidden = d.upcoming.length > 0;
-  reconcile($("#ready"), d.ready, (p) => `post-${p.id}`, readyHtml);
-  $("#ready-empty").hidden = d.ready.length > 0;
-  reconcile($("#history"), state.history, (p) => `hist-${p.id}`, historyHtml);
-  $("#history-empty").hidden = state.history.length > 0;
-  $("#history-more").hidden = state.history.length >= state.historyTotal;
   $("#lede-upcoming").textContent = d.paused
     ? "Publishing is paused. Nothing goes out until you resume; posts past their time by more than 3 h are skipped."
     : "Posts publish automatically at their time unless you discard them.";
-  $("#count-upcoming").textContent = d.upcoming.filter((s) => ["pending", "claimed", "generated"].includes(s.status)).length || "";
-  $("#count-ready").textContent = d.ready.length || "";
-  $("#count-history").textContent = state.historyTotal || "";
+  $("#count-upcoming").textContent = d.upcoming.length || "";
   tickClocks();
 }
 
 function tickClocks() {
   for (const el of document.querySelectorAll("[data-countdown]")) el.textContent = countdown(el.dataset.countdown);
   for (const el of document.querySelectorAll("[data-since]")) el.textContent = `for ${duration(Date.now() - Date.parse(el.dataset.since))}`;
-  for (const el of document.querySelectorAll("[data-rel]")) el.textContent = relative(el.dataset.rel);
-  for (const el of document.querySelectorAll("[data-ago]")) {
-    const r = relative(el.dataset.ago);
-    el.textContent = r === "now" ? "just now" : /^\d/.test(r) && !/[a-z]{3}/i.test(r) ? `${r} ago` : `on ${r}`;
-  }
 }
 
 // ---------- refresh loop ----------
@@ -380,17 +286,7 @@ async function refresh() {
   if (loading) return loading;
   loading = (async () => {
     try {
-      const [s, h] = await Promise.all([api("GET", "/api/state"), api("GET", `/api/history?offset=0&limit=${Math.max(50, state.history.length)}`)]);
-      const wasRunning = new Set((state.data?.jobs ?? []).filter((j) => j.status === "running").map((j) => j.id));
-      state.data = s;
-      state.history = h.posts;
-      state.historyTotal = h.total;
-      for (const j of s.jobs) {
-        if (!wasRunning.has(j.id) || j.status === "running") continue;
-        const what = j.kind === "regenerate" ? `Slot ${j.slot_id}` : "New post";
-        if (j.status === "done") toast(`${what}: post #${j.post_id} is ready to review.`, "ok");
-        else toast(`${what}: ${j.error ?? "generation failed"}`, "error");
-      }
+      state.data = await api("GET", "/api/state");
       render();
       document.body.classList.remove("offline");
     } catch (e) {
@@ -406,7 +302,7 @@ async function refresh() {
 
 function schedule() {
   clearTimeout(timer);
-  const fast = (state.data?.jobs ?? []).some((j) => j.status === "running") || (state.data?.upcoming ?? []).some((s) => s.status === "claimed");
+  const fast = (state.data?.upcoming ?? []).some((s) => s.status === "claimed");
   timer = setTimeout(refresh, fast ? FAST_REFRESH_MS : REFRESH_MS);
 }
 
@@ -427,30 +323,14 @@ async function run(key, fn, okMsg) {
   }
 }
 
-function formatFor(id) {
-  return document.querySelector(`select[data-format-for="${id}"]`)?.value ?? "auto";
-}
-
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-action]");
   if (!b) return;
   const id = Number(b.dataset.id);
   const action = b.dataset.action;
   if (action === "discard") {
-    const inSlot = state.data?.upcoming.some((s) => s.post?.id === id);
-    if (!confirm(`Discard post #${id}? It will not be published${inSlot ? " and its slot will be skipped" : ""}.`)) return;
+    if (!confirm(`Discard post #${id}? It will not be published and nothing replaces it.`)) return;
     run(`discard:${id}`, () => api("POST", `/api/posts/${id}/discard`), `Discarded post #${id}.`);
-  } else if (action === "publish") {
-    if (!confirm(`Publish post #${id} to X now?`)) return;
-    run(`publish:${id}`, () => api("POST", `/api/posts/${id}/publish`), (r) => `Published: ${r.result.url}`);
-  } else if (action === "regenerate") {
-    const slot = state.data?.upcoming.find((s) => s.id === id);
-    const replaces = slot?.post && slot.post.status === "approved";
-    if (replaces && !confirm(`Discard post #${slot.post.id} and write a new one for slot ${id}?`)) return;
-    run(`regenerate:${id}`, () => api("POST", `/api/slots/${id}/regenerate`, { format: formatFor(id) }), `Writing a new post for slot ${id}.`);
-  } else if (action === "skip") {
-    if (!confirm(`Skip slot ${id}? Nothing will be published at that time.`)) return;
-    run(`skip:${id}`, () => api("POST", `/api/slots/${id}/skip`), `Skipped slot ${id}.`);
   }
 });
 
@@ -464,43 +344,6 @@ $("#pause-btn").addEventListener("click", () => {
     run("pause", () => api("POST", "/api/pause", { reason }), "Publishing paused.");
   }
 });
-
-$("#new-btn").addEventListener("click", () => {
-  const panel = $("#new-panel");
-  panel.hidden = !panel.hidden;
-  $("#new-btn").setAttribute("aria-expanded", String(!panel.hidden));
-});
-
-$("#new-panel").addEventListener("submit", (ev) => {
-  ev.preventDefault();
-  const product = $("#new-product").value;
-  const format = $("#new-format").value;
-  run("generate", () => api("POST", "/api/generate", { product, format }), "Writing a new post. It will appear in Ready.");
-  $("#new-panel").hidden = true;
-  $("#new-btn").setAttribute("aria-expanded", "false");
-});
-
-$("#history-more").addEventListener("click", async () => {
-  try {
-    const h = await api("GET", `/api/history?offset=${state.history.length}&limit=50`);
-    state.history = state.history.concat(h.posts);
-    state.historyTotal = h.total;
-    render();
-  } catch (e) {
-    toast(e.message, "error");
-  }
-});
-
-function showTab(tab) {
-  state.tab = tab;
-  for (const t of document.querySelectorAll(".tab")) t.setAttribute("aria-selected", String(t.dataset.tab === tab));
-  for (const v of document.querySelectorAll(".view")) v.hidden = v.id !== `view-${tab}`;
-  if (location.hash !== `#${tab}`) history.replaceState(null, "", `#${tab}`);
-}
-for (const t of document.querySelectorAll(".tab")) t.addEventListener("click", () => showTab(t.dataset.tab));
-const tabFromHash = () => (["upcoming", "ready", "history"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "upcoming");
-showTab(tabFromHash());
-window.addEventListener("hashchange", () => showTab(tabFromHash()));
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refresh();

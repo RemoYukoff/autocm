@@ -9,7 +9,6 @@ export interface StrategistInput {
   product: Product;
   caps: Capabilities;
   history: PostRow[];
-  format?: Format;
   /** Angles rejected as duplicates; the strategist must pick something different. */
   avoid?: string[];
   postId?: number;
@@ -25,8 +24,8 @@ const KIND_GUIDE: Record<MediaKind, string> = {
 };
 
 export async function planBrief(input: StrategistInput): Promise<Brief> {
-  const { product, caps, history, format, avoid = [] } = input;
-  const kinds = availableKinds(caps, format);
+  const { product, caps, history, avoid = [] } = input;
+  const kinds = availableKinds(caps);
   const formats = [...new Set(kinds.map((k) => KIND_FORMAT[k]))] as [Format, ...Format[]];
   const pillarIds = product.config.pillars.map((p) => p.id) as [string, ...string[]];
   const stats = historyStats(product, history);
@@ -51,7 +50,6 @@ ${statsContext(product, stats)}
 
 # Media kinds you can use now
 ${kinds.map((k) => `- ${k} (format ${KIND_FORMAT[k]}): ${KIND_GUIDE[k]}`).join("\n")}
-${format ? `\nThe format for this post is fixed: ${format}.` : ""}
 ${avoid.length ? `\n# Angles already rejected — pick a clearly different idea\n${avoid.map((a) => `- ${a}`).join("\n")}` : ""}
 
 # How to decide

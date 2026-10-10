@@ -1,16 +1,13 @@
 #!/usr/bin/env tsx
 import { Command } from "commander";
 import { capabilitiesFor, listProductSlugs, loadProduct, validateProductFiles } from "./core/config.ts";
-import { getDb, getPost, recentPosts } from "./core/db/index.ts";
+import { getDb, recentPosts } from "./core/db/index.ts";
 import { env } from "./core/env.ts";
 import { log } from "./core/log.ts";
-import { Format } from "./core/types.ts";
 import { renderFixture } from "./media/index.ts";
-import { generatePost } from "./pipeline.ts";
-import { publishPost, xWhoami } from "./publish/index.ts";
+import { xWhoami } from "./publish/index.ts";
 import { pause, pausedReason, resume } from "./safety/pause.ts";
 import { planSlots, runDaemon, tick } from "./scheduler/index.ts";
-import { listJobs, lockedKeys, settleJobs } from "./dashboard/actions.ts";
 import { DEFAULT_PORT, startDashboard } from "./dashboard/server.ts";
 import { currentTick } from "./scheduler/tick.ts";
 import { inFlight } from "./core/inflight.ts";
@@ -49,35 +46,14 @@ products.command("validate [slug]").description("Validate product.yaml and refer
   process.exitCode = bad ? 1 : 0;
 });
 
-program
-  .command("generate <product>")
-  .description("Generate one post (strategist decides format unless --format). Does not publish unless --publish")
-  .option("-f, --format <format>", "text | image | video")
-  .option("--publish", "publish to X right after generation")
-  .action(async (slug: string, o: { format?: string; publish?: boolean }) => {
-    const format = o.format ? Format.parse(o.format) : undefined;
-    const post = await generatePost(slug, { format });
-    console.log(`post #${post.id} ${post.status} ${post.format}/${post.media_kind}\n${post.text ?? ""}\n${post.out_dir ?? ""}`);
-    if (o.publish && post.status === "approved") {
-      const res = await publishPost(post, loadProduct(slug));
-      console.log(res);
-    }
-  });
-
-program.command("publish <postId>").description("Publish an approved post now (guards still apply)").action(async (id: string) => {
-  const post = getPost(Number(id));
-  if (!post) throw new Error(`post ${id} not found`);
-  console.log(await publishPost(post, loadProduct(post.product)));
-});
-
 program.command("plan").option("-d, --days <n>", "days ahead", "1").description("Create posting slots").action(async (o: { days: string }) => {
   console.log(`${await planSlots(Number(o.days))} slots created`);
 });
 program.command("tick").description("Run one scheduler pass").action(tick);
-/** On a source change, wait until no tick or dashboard job is running, then stop the daemon via SIGTERM. */
+/** On a source change, wait until no tick or publish is running, then stop the daemon via SIGTERM. */
 function restartWhenIdle(): () => void {
   let poll: NodeJS.Timeout | undefined;
-  const idle = () => !currentTick() && !inFlight() && !lockedKeys().length && !listJobs().some((j) => j.status === "running");
+  const idle = () => !currentTick() && !inFlight();
   const stopWatching = watchSources((file) => {
     if (poll) return;
     log.info({ file }, "source changed: restarting once idle");
@@ -114,14 +90,13 @@ program
     } finally {
       unwatch?.();
       server?.close();
-      await settleJobs();
     }
     if (o.watch) process.exit(0);
   });
 
 program
   .command("dashboard")
-  .description("Local web dashboard: preview upcoming posts, veto, regenerate, publish now")
+  .description("Local web dashboard: preview upcoming posts and veto them")
   .option("-p, --port <port>", "port", String(DEFAULT_PORT))
   .action((o: { port: string }) => {
     startDashboard(portArg(o.port), () => {
@@ -139,7 +114,7 @@ program.command("resume").description("Resume publishing").action(() => {
 });
 
 program.command("history <product>").option("-n <n>", "how many", "20").action((slug: string, o: { n: string }) => {
-  const rows = recentPosts(slug, Number(o.n), ["published", "approved", "rejected", "failed", "qa_failed", "generating", "publishing"]);
+  const rows = recentPosts(slug, Number(o.n), ["published", "approved", "rejected", "failed", "generating", "publishing"]);
   for (const r of rows) {
     console.log(`#${r.id} ${r.status.padEnd(9)} ${(r.format ?? "-").padEnd(5)} ${(r.media_kind ?? "-").padEnd(8)} ${r.pillar ?? "-"} | ${(r.text ?? r.error ?? "").replace(/\s+/g, " ").slice(0, 90)}`);
   }

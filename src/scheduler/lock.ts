@@ -1,6 +1,6 @@
 // Cross-process tick lock stored in flags: value = "<iso timestamp>|<owner token>". Stale after 20 min.
 import crypto from "node:crypto";
-import { getDb, getFlag, nowIso } from "../core/db/index.ts";
+import { getDb, nowIso } from "../core/db/index.ts";
 
 export const TICK_LOCK_KEY = "tick_lock";
 export const LOCK_STALE_MS = 20 * 60_000;
@@ -30,8 +30,4 @@ export function heartbeatTickLock(token: string): boolean {
 
 export function releaseTickLock(token: string): void {
   getDb().prepare(`DELETE FROM flags WHERE ${ownerClause}`).run(TICK_LOCK_KEY, token);
-}
-
-export function tickLockHolder(): string | undefined {
-  return getFlag(TICK_LOCK_KEY);
 }

@@ -1,13 +1,12 @@
-// Slot planning: random times inside the product's posting windows (product timezone), spaced by min_gap_min.
+// Slot planning: a random number of posts per day at random times inside the product's posting windows
+// (product timezone), spaced by min_gap_min. The next tick writes every pending slot, so the dashboard shows each
+// post of the day long before it goes out.
 import { getDb, logEvent } from "../core/db/index.ts";
 import { log } from "../core/log.ts";
 import type { Product } from "../core/types.ts";
 import { dayRangeUtc, localDate, zonedToUtc } from "../safety/time.ts";
 
 const MIN = 60_000;
-/** generate_at = scheduled_at - GENERATE_LEAD */
-/** Fallback when a product does not set cadence.generate_lead_min. */
-export const GENERATE_LEAD_MIN = 180;
 /** Never schedule a slot sooner than this from now (gives generation a chance to finish). */
 export const MIN_SCHEDULE_LEAD_MIN = 15;
 const SAMPLE_ATTEMPTS = 300;
@@ -100,13 +99,18 @@ export function pickTimes(intervals: Interval[], n: number, gapMs: number, rand:
   return [];
 }
 
+/** How many posts one day gets: uniform in [posts_per_day_min, posts_per_day_max], never above daily_cap. */
+export function dailyCount(cadence: Product["config"]["cadence"], rand: () => number = Math.random): number {
+  const { posts_per_day_min: min, posts_per_day_max: max } = cadence;
+  return Math.min(min + Math.floor(rand() * (max - min + 1)), cadence.daily_cap);
+}
+
 /** Plan one product. Skips any local day that already has slots. Returns slots created. */
 export function planProductSlots(product: Product, days: number, now = new Date(), rand: () => number = Math.random): number {
   const c = product.config;
   if (!c.enabled) return 0;
-  const n = Math.min(c.cadence.posts_per_day, c.cadence.daily_cap);
   const db = getDb();
-  const insert = db.prepare("INSERT OR IGNORE INTO slots (product, scheduled_at, generate_at) VALUES (?, ?, ?)");
+  const insert = db.prepare("INSERT OR IGNORE INTO slots (product, scheduled_at) VALUES (?, ?)");
   let created = 0;
   for (let d = 0; d < days; d++) {
     const range = dayRangeUtc(now, c.timezone, d);
@@ -114,14 +118,14 @@ export function planProductSlots(product: Product, days: number, now = new Date(
       .prepare("SELECT COUNT(*) AS n FROM slots WHERE product = ? AND scheduled_at >= ? AND scheduled_at < ?")
       .get(c.slug, range.start, range.end) as { n: number };
     if (Number(existing.n) > 0) continue;
+    const n = dailyCount(c.cadence, rand);
     if (n <= 0) continue;
     const intervals = windowIntervals(product, now, d, now.getTime() + MIN_SCHEDULE_LEAD_MIN * MIN);
     const times = pickTimes(intervals, n, c.cadence.min_gap_min * MIN, rand);
     const planned: string[] = [];
     for (const t of times) {
       const scheduled = new Date(t).toISOString();
-      const generate = new Date(t - (c.cadence.generate_lead_min ?? GENERATE_LEAD_MIN) * MIN).toISOString();
-      if (Number(insert.run(c.slug, scheduled, generate).changes) === 1) {
+      if (Number(insert.run(c.slug, scheduled).changes) === 1) {
         created++;
         planned.push(scheduled);
       }

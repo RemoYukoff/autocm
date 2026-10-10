@@ -47,19 +47,15 @@ export const ProductConfig = z.object({
   format_mix: z
     .object({ text: z.number().min(0), image: z.number().min(0), video: z.number().min(0) })
     .refine((m) => m.text + m.image + m.video > 0, "format_mix must not be all zero"),
-  cadence: z.object({
-    posts_per_day: z.number().int().min(0).max(10),
-    windows: z.array(hhmm).min(1),
-    daily_cap: z.number().int().min(0).max(20),
-    min_gap_min: z.number().int().min(0).default(90),
-    generate_lead_min: z
-      .number()
-      .int()
-      .min(5)
-      .max(1440)
-      .default(180)
-      .describe("Minutes before the slot that the post is generated; this is the window to review or veto it"),
-  }),
+  cadence: z
+    .object({
+      posts_per_day_min: z.number().int().min(0).max(10).describe("Fewest posts planned for one day"),
+      posts_per_day_max: z.number().int().min(0).max(10).describe("Most posts planned for one day; each day draws a count in [min, max]"),
+      windows: z.array(hhmm).min(1),
+      daily_cap: z.number().int().min(0).max(20),
+      min_gap_min: z.number().int().min(0).default(90),
+    })
+    .refine((c) => c.posts_per_day_min <= c.posts_per_day_max, "posts_per_day_min must be <= posts_per_day_max"),
   brand: z.object({
     colors: z.object({
       primary: z.string(),
@@ -87,8 +83,8 @@ export const ProductConfig = z.object({
     max_link_ratio: z.number().min(0).max(1).default(0.34).describe("Max share of recent posts carrying a link"),
   }),
   hashtags: z
-    .object({ max_per_post: z.number().int().min(0).default(1), preferred: z.array(z.string()).default([]) })
-    .default({ max_per_post: 1, preferred: [] }),
+    .object({ max_per_post: z.number().int().min(0).default(1) })
+    .default({ max_per_post: 1 }),
 });
 export type ProductConfig = z.infer<typeof ProductConfig>;
 
@@ -216,9 +212,7 @@ export const MediaResult = z.object({
 export type MediaResult = z.infer<typeof MediaResult>;
 
 export const PostStatus = z.enum([
-  "planned",
   "generating",
-  "qa_failed",
   "approved",
   "publishing",
   "published",
@@ -240,13 +234,11 @@ export interface PostRow {
   alt_text: string | null;
   media_json: string | null;
   brief_json: string | null;
-  qa_json: string | null;
   attempts: number;
   text_hash: string | null;
   tweet_id: string | null;
   url: string | null;
   error: string | null;
-  out_dir: string | null;
   created_at: string;
   updated_at: string;
   published_at: string | null;

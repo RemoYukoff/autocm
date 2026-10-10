@@ -10,9 +10,6 @@ import { countPublishedBetween, weightedLength } from "../safety/guards.ts";
 import { pausedReason } from "../safety/pause.ts";
 import { dayRangeUtc } from "../safety/time.ts";
 
-/** Slot statuses the scheduler still acts on. */
-export const ACTIVE_SLOT_STATUSES = ["pending", "claimed", "generated"] as const;
-export const HISTORY_STATUSES: PostStatus[] = ["published", "rejected", "failed", "qa_failed"];
 
 export interface MediaView {
   url: string;
@@ -51,7 +48,6 @@ export interface SlotView {
   id: number;
   product: string;
   scheduled_at: string;
-  generate_at: string;
   status: SlotRow["status"];
   claimed_at: string | null;
   post: PostView | null;
@@ -151,45 +147,17 @@ function slotPost(slot: SlotRow): PostRow | undefined {
 }
 
 /**
- * Slots still ahead: everything the scheduler will act on (pending / claimed / generated, even if a guard
- * is holding it past its time), plus future slots that were skipped or failed so they can be regenerated.
+ * What the bot is about to publish: every slot the scheduler still acts on (pending / claimed / generated, even if
+ * a guard is holding it past its time). Vetoed, failed and published slots drop out.
  */
-export function upcomingSlots(now = new Date(), limit = 60): SlotView[] {
+export function upcomingSlots(limit = 60): SlotView[] {
   const rows = getDb()
-    .prepare(
-      `SELECT * FROM slots
-       WHERE status IN ('pending','claimed','generated')
-          OR (status IN ('skipped','failed') AND scheduled_at > ?)
-       ORDER BY scheduled_at LIMIT ?`,
-    )
-    .all(now.toISOString(), limit) as unknown as SlotRow[];
+    .prepare("SELECT * FROM slots WHERE status IN ('pending','claimed','generated') ORDER BY scheduled_at LIMIT ?")
+    .all(limit) as unknown as SlotRow[];
   return rows.map((s) => {
     const p = slotPost(s);
-    return { id: s.id, product: s.product, scheduled_at: s.scheduled_at, generate_at: s.generate_at, status: s.status, claimed_at: s.claimed_at, post: p ? postView(p) : null };
+    return { id: s.id, product: s.product, scheduled_at: s.scheduled_at, status: s.status, claimed_at: s.claimed_at, post: p ? postView(p) : null };
   });
-}
-
-/** Approved posts that no active slot will publish (e.g. made with `generate` or from the dashboard). */
-export function readyPosts(limit = 100): PostView[] {
-  const rows = getDb()
-    .prepare(
-      `SELECT * FROM posts p WHERE p.status = 'approved'
-       AND NOT EXISTS (SELECT 1 FROM slots s WHERE s.post_id = p.id AND s.status IN ('pending','claimed','generated'))
-       ORDER BY p.created_at DESC LIMIT ?`,
-    )
-    .all(limit) as unknown as PostRow[];
-  return rows.map(postView);
-}
-
-/** Posts that are finished one way or another, newest first. */
-export function historyPosts(offset = 0, limit = 50): { posts: PostView[]; total: number } {
-  const marks = HISTORY_STATUSES.map(() => "?").join(",");
-  const db = getDb();
-  const rows = db
-    .prepare(`SELECT * FROM posts WHERE status IN (${marks}) ORDER BY COALESCE(published_at, updated_at) DESC, id DESC LIMIT ? OFFSET ?`)
-    .all(...HISTORY_STATUSES, limit, offset) as unknown as PostRow[];
-  const total = db.prepare(`SELECT COUNT(*) AS n FROM posts WHERE status IN (${marks})`).get(...HISTORY_STATUSES) as { n: number };
-  return { posts: rows.map(postView), total: Number(total.n) };
 }
 
 function safeProducts(): Product[] {

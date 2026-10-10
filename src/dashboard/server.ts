@@ -7,19 +7,8 @@ import { serve, type ServerType } from "@hono/node-server";
 import { Hono, type Context } from "hono";
 import { log } from "../core/log.ts";
 import { OUT_DIR, ROOT } from "../core/paths.ts";
-import { Format } from "../core/types.ts";
-import {
-  ActionError,
-  discardPost,
-  generateNow,
-  listJobs,
-  pausePublishing,
-  publishNow,
-  regenerateSlot,
-  resumePublishing,
-  skipSlot,
-} from "./actions.ts";
-import { headerState, historyPosts, postView, readyPosts, upcomingSlots } from "./queries.ts";
+import { ActionError, discardPost, pausePublishing, resumePublishing } from "./actions.ts";
+import { headerState, postView, upcomingSlots } from "./queries.ts";
 
 export const DEFAULT_PORT = 4321;
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
@@ -30,13 +19,8 @@ const MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".webp": "image/webp",
-  ".gif": "image/gif",
   ".mp4": "video/mp4",
-  ".webm": "video/webm",
-  ".mov": "video/quicktime",
   ".json": "application/json; charset=utf-8",
-  ".md": "text/markdown; charset=utf-8",
-  ".txt": "text/plain; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -96,7 +80,7 @@ function sendFile(c: Context, file: string, cache = "no-cache"): Response {
 }
 
 function fail(c: Context, e: unknown) {
-  if (e instanceof ActionError) return c.json({ error: e.message, guard: e.guard ?? null }, e.status);
+  if (e instanceof ActionError) return c.json({ error: e.message }, e.status);
   log.error({ err: (e as Error).message }, "dashboard action failed");
   return c.json({ error: (e as Error).message }, 500);
 }
@@ -114,13 +98,6 @@ async function body(c: Context): Promise<Record<string, unknown>> {
   } catch {
     return {};
   }
-}
-
-function parseFormat(v: unknown): Format | undefined {
-  if (v === undefined || v === null || v === "" || v === "auto") return undefined;
-  const r = Format.safeParse(v);
-  if (!r.success) throw new ActionError(400, `format must be auto, text, image or video`);
-  return r.data;
 }
 
 export function createApp(): Hono {
@@ -165,50 +142,13 @@ export function createApp(): Hono {
   });
 
   // ---------- read API ----------
-  app.get("/api/state", (c) => c.json({ ...headerState(), upcoming: upcomingSlots(), ready: readyPosts(), jobs: listJobs() }));
-  app.get("/api/history", (c) => {
-    const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
-    const limit = Math.min(200, Math.max(1, Number(c.req.query("limit") ?? 50) || 50));
-    return c.json({ offset, limit, ...historyPosts(offset, limit) });
-  });
+  app.get("/api/state", (c) => c.json({ ...headerState(), upcoming: upcomingSlots() }));
 
   // ---------- actions ----------
   app.post("/api/posts/:id/discard", (c) => {
     try {
       const r = discardPost(idParam(c));
       return c.json({ post: postView(r.post), slot: r.slot });
-    } catch (e) {
-      return fail(c, e);
-    }
-  });
-  app.post("/api/posts/:id/publish", async (c) => {
-    try {
-      const r = await publishNow(idParam(c));
-      return c.json({ post: postView(r.post), result: r.result });
-    } catch (e) {
-      return fail(c, e);
-    }
-  });
-  app.post("/api/slots/:id/regenerate", async (c) => {
-    try {
-      const b = await body(c);
-      return c.json({ job: regenerateSlot(idParam(c), parseFormat(b.format)) }, 202);
-    } catch (e) {
-      return fail(c, e);
-    }
-  });
-  app.post("/api/slots/:id/skip", (c) => {
-    try {
-      return c.json({ slot: skipSlot(idParam(c)) });
-    } catch (e) {
-      return fail(c, e);
-    }
-  });
-  app.post("/api/generate", async (c) => {
-    try {
-      const b = await body(c);
-      if (typeof b.product !== "string" || !b.product) throw new ActionError(400, "product required");
-      return c.json({ job: generateNow(b.product, parseFormat(b.format)) }, 202);
     } catch (e) {
       return fail(c, e);
     }
