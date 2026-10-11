@@ -257,7 +257,7 @@ function slotHtml(slot) {
   let body;
   if (slot.status === "pending" || slot.status === "claimed") {
     const since = slot.status === "claimed" ? slot.claimed_at : null;
-    body = `<div class="placeholder writing"><span class="spinner" aria-hidden="true"></span><p>Generating${slot.format ? ` ${esc(slot.format)}` : ""}…${since ? ` <span class="muted" data-since="${esc(since)}"></span>` : ""}</p></div>`;
+    body = `<div class="placeholder writing"><span class="spinner" aria-hidden="true"></span><p>${slot.format ? `Generating ${esc(slot.format)}…` : slot.status === "claimed" ? "Choosing text, image or video…" : "Generating…"}${since ? ` <span class="muted" data-since="${esc(since)}"></span>` : ""}</p></div>`;
   } else if (post) {
     body = tweetCard(post, fmtTime(slot.scheduled_at, p.timezone, false));
   } else {

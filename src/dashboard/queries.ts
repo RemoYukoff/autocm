@@ -3,7 +3,7 @@ import path from "node:path";
 import { listProductSlugs, loadProduct, loadProducts } from "../core/config.ts";
 import { getDb, getXAccount, listXAccounts } from "../core/db/index.ts";
 import { OUT_DIR } from "../core/paths.ts";
-import type { MediaResult, PostRow, PostStatus, Product, XAccount } from "../core/types.ts";
+import type { Format, MediaResult, PostRow, PostStatus, Product, XAccount } from "../core/types.ts";
 import type { SlotRow } from "../scheduler/index.ts";
 import { isPaused } from "../safety/pause.ts";
 import { localDate, zonedToUtc } from "../safety/time.ts";
@@ -45,6 +45,8 @@ export interface SlotView {
   scheduled_at: string;
   status: SlotRow["status"];
   claimed_at: string | null;
+  /** What the post is or will be: the format asked for, else the marketer's pick once made (null before that). */
+  format: Format | null;
   post: PostView | null;
 }
 
@@ -150,7 +152,7 @@ function slotPost(slot: SlotRow): PostRow | undefined {
 
 function slotView(s: SlotRow): SlotView {
   const p = slotPost(s);
-  return { id: s.id, product: s.product, scheduled_at: s.scheduled_at, status: s.status, claimed_at: s.claimed_at, post: p ? postView(p) : null };
+  return { id: s.id, product: s.product, scheduled_at: s.scheduled_at, status: s.status, claimed_at: s.claimed_at, format: s.format ?? p?.format ?? null, post: p ? postView(p) : null };
 }
 
 export const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;

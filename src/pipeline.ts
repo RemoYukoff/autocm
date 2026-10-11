@@ -56,6 +56,8 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
 
     const brief = await newBrief();
     save("brief.json", brief);
+    // Known now: the dashboard shows what is being made while the rest is written.
+    updatePost(postId, { format: brief.format, media_kind: brief.media_kind });
     let written: Written = await writeDraft({ product, brief, history, postId });
     // Only rule enforced on the text: it must fit in a tweet.
     for (let i = 0; i < MAX_REWRITES && textIssues(written.draft).length; i++) {
