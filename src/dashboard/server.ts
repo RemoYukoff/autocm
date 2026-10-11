@@ -8,7 +8,7 @@ import { Hono, type Context } from "hono";
 import { log } from "../core/log.ts";
 import { OUT_DIR, ROOT } from "../core/paths.ts";
 import { SLUG_RE } from "../products/write.ts";
-import { avatarFile, deleteAccount, getAccountJob, listAccountJobs, startAdd, startReconnect, startWebsite } from "./accounts.ts";
+import { avatarFile, deleteAccount, getAccountJob, listAccountJobs, requireAccount, startAdd, startReconnect, startWebsite } from "./accounts.ts";
 import { ActionError, discardPost, pausePublishing, resumePublishing } from "./actions.ts";
 import { headerState, postView, upcomingSlots } from "./queries.ts";
 
@@ -223,11 +223,25 @@ export function createApp(): Hono {
       return fail(c, e);
     }
   });
-  app.post("/api/pause", async (c) => {
-    const b = await body(c);
-    return c.json({ paused: pausePublishing(typeof b.reason === "string" ? b.reason : undefined) });
+  app.post("/api/accounts/:slug/pause", async (c) => {
+    try {
+      const slug = slugParam(c);
+      requireAccount(slug);
+      const b = await body(c);
+      return c.json({ paused: pausePublishing(slug, typeof b.reason === "string" ? b.reason : undefined) });
+    } catch (e) {
+      return fail(c, e);
+    }
   });
-  app.post("/api/resume", (c) => c.json({ paused: resumePublishing() }));
+  app.post("/api/accounts/:slug/resume", (c) => {
+    try {
+      const slug = slugParam(c);
+      requireAccount(slug);
+      return c.json({ paused: resumePublishing(slug) });
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
 
   return app;
 }

@@ -67,13 +67,14 @@ pnpm autocm dashboard           # dashboard only, http://127.0.0.1:4321
 Shows only what the bot is about to publish: each planned slot with an X-style preview of its post (text, image
 or video). Every day the scheduler picks how many posts to make (`cadence.posts_per_day_min` to `posts_per_day_max`)
 and when, and writes them right away, so they are visible hours before they go out. The only actions are
-discard (veto) and pause/resume. Without a veto, posts publish on schedule. Once published, a post leaves the
+discard (veto) and pause/resume of the shown account. Without a veto, posts publish on schedule. Once published, a post leaves the
 list; nothing tracks it afterwards.
 
 ### Accounts
 
-The account menu in the header switches between **All accounts** and one account (Up next and the quotas follow the
-choice, remembered per browser). Adding an account takes two steps and exposes no product settings:
+The dashboard always shows one account: the last one opened in this browser, else the first. The account menu in
+the header switches between them; with no accounts the menu is just **+ Add account**. Each account has its own
+pause switch. Adding an account takes two steps and exposes no product settings:
 
 1. **+ Add account** opens a browser window at x.com/login. Log in to the X account autocm should post from; the
    window closes by itself and the account appears under its @handle (its slug comes from the handle).
@@ -101,7 +102,7 @@ the login, headless afterwards, with the same user agent in both so X sees one b
 3. **Delete account** removes the product folder, its X session, generated files and every planned post.
 
 - `data/sessions/` holds the X session cookies. It is gitignored: never commit, copy or share it.
-- A logged-out, locked or challenged session pauses publishing and shows the error on the account; reconnect.
+- A logged-out, locked or challenged session pauses that account and shows the error on the account; reconnect.
 - A failed post saves a screenshot in `out/x-debug/<slug>/` (never the page HTML). A failure after the Post click
   is never retried, because the post may be live: check the account on X before re-posting.
 - The X selectors and GraphQL response shapes live in `src/x/selectors.ts`. They have not been verified against
@@ -109,10 +110,10 @@ the login, headless afterwards, with the same user agent in both so X sees one b
 
 ## Safety rails
 
-- Kill switch: Pause/Resume in the dashboard, or `pnpm autocm pause [reason]` / `resume`.
+- Kill switch per account: Pause/Resume in the dashboard, or `pnpm autocm pause <product> [reason]` / `resume <product>`.
 - Per-product `daily_cap`, global `AUTOCM_GLOBAL_DAILY_CAP`, `min_gap_min` between posts.
 - Exact and near-duplicate check right before publishing.
-- Auto-pause after 3 consecutive publish failures or when the X session is logged out or locked.
+- An account auto-pauses after 3 consecutive publish failures or when its X session is logged out or locked.
 - Never re-posts blindly after a crash: posts stuck in `publishing` are marked failed.
 
 ## Adding a product

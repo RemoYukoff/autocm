@@ -110,6 +110,8 @@ main { padding: 8px max(20px, calc((100vw - 1240px) / 2)) 60px; }
 .view-title { font-size: 20px; font-weight: 600; margin: 22px 0 0; }
 .lede { color: var(--muted); margin: 6px 0 22px; }
 .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+.no-accounts { padding: 56px 0; text-align: center; }
+.no-accounts .lede { margin: 8px auto 20px; max-width: 46ch; }
 
 /* Up next: a real timeline. Left rail = when, middle = the post as X will show it, right = why and what to do. */
 .timeline { list-style: none; margin: 0; padding: 0; }
@@ -280,11 +282,6 @@ main { padding: 8px max(20px, calc((100vw - 1240px) / 2)) 60px; }
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
 }
 img.av { background: var(--raise); }
-.av-all { background: var(--surface); position: relative; display: block; }
-.av-all i { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--av); box-shadow: 0 0 0 1.5px var(--surface); }
-.av-all i:nth-child(1) { left: 4px; top: 5px; }
-.av-all i:nth-child(2) { right: 4px; top: 7px; }
-.av-all i:nth-child(3) { left: 9px; bottom: 4px; }
 .av-plus { background: transparent; border: 1px dashed var(--faint); color: var(--muted); box-shadow: none; font-size: 16px; font-weight: 500; }
 .av-lg { width: 48px; height: 48px; font-size: 19px; }
 .av-empty { background: var(--raise); color: var(--faint); }
@@ -406,3 +403,4 @@ img.tw-avatar { object-fit: cover; background: var(--raise); }
   .acct-menu { position: fixed; left: 16px; right: 16px; top: 64px; width: auto; }
   .setup-row { flex-direction: column; }
 }
+.acct-btn .acct-text { text-align: left; }

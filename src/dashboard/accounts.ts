@@ -89,7 +89,7 @@ function runningFor(slug: string): AccountJob | undefined {
 
 const hasProduct = (slug: string) => listProductSlugs().includes(slug);
 
-function requireAccount(slug: string): void {
+export function requireAccount(slug: string): void {
   if (!SLUG_RE.test(slug) || (!hasProduct(slug) && !getXAccount(slug))) throw new ActionError(404, `unknown account "${slug}"`);
 }
 

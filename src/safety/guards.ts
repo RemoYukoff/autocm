@@ -55,7 +55,7 @@ export function checkGuards(product: Product, text: string): GuardResult {
   const now = new Date();
 
   // (a) kill switch
-  const paused = pausedReason();
+  const paused = pausedReason(slug);
   if (paused) return { ok: false, reason: `paused: ${paused}` };
 
   // (b) product enabled

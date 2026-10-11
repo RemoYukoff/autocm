@@ -1,17 +1,20 @@
 import { getFlag, logEvent, setFlag } from "../core/db/index.ts";
 
-/** Stop all publishing. The reason is the flag's value. */
-export function pause(reason = "manual"): void {
-  setFlag("paused", reason);
-  logEvent("paused", { payload: { reason } });
+/** Flag key holding why an account's publishing is paused. Each account has its own switch. */
+export const pauseKey = (product: string) => `paused:${product}`;
+
+/** Stop publishing for one account. The reason is the flag's value. */
+export function pause(product: string, reason = "manual"): void {
+  setFlag(pauseKey(product), reason);
+  logEvent("paused", { product, payload: { reason } });
 }
 
-export function resume(): void {
-  setFlag("paused", null);
-  logEvent("resumed");
+export function resume(product: string): void {
+  setFlag(pauseKey(product), null);
+  logEvent("resumed", { product });
 }
 
-/** Why publishing is paused, or null when it is not. */
-export function pausedReason(): string | null {
-  return getFlag("paused") ?? null;
+/** Why publishing is paused for this account, or null when it is not. */
+export function pausedReason(product: string): string | null {
+  return getFlag(pauseKey(product)) ?? null;
 }

@@ -33,24 +33,25 @@ export class PublishStateError extends Error {
   }
 }
 
-export const FAILURES_FLAG = "consecutive_failures";
+/** Flag key counting an account's consecutive publish failures. */
+export const failuresKey = (product: string) => `consecutive_failures:${product}`;
 export const MAX_CONSECUTIVE_FAILURES = 3;
 
 function recordFailure(product: string, err: XError): void {
-  const n = Number(getFlag(FAILURES_FLAG) ?? 0) + 1;
-  setFlag(FAILURES_FLAG, String(n));
+  const n = Number(getFlag(failuresKey(product)) ?? 0) + 1;
+  setFlag(failuresKey(product), String(n));
   if (err.kind === "auth") {
-    pause(`X auth error on ${product}: ${err.message}`);
+    pause(product, `X auth error: ${err.message}`);
     log.error({ product, err: err.message }, "auth error from X: publishing paused");
   } else if (n >= MAX_CONSECUTIVE_FAILURES) {
-    pause(`${n} consecutive publish failures (last: ${err.message})`);
+    pause(product, `${n} consecutive publish failures (last: ${err.message})`);
     log.error({ product, failures: n }, "too many consecutive publish failures: publishing paused");
   }
 }
 
 function markPublished(post: PostRow, tweet: { id: string; url: string }): PublishResult {
   updatePost(post.id, { status: "published", tweet_id: tweet.id, url: tweet.url, published_at: post.published_at ?? nowIso(), error: null });
-  setFlag(FAILURES_FLAG, "0");
+  setFlag(failuresKey(post.product), "0");
   logEvent("published", { product: post.product, post_id: post.id, payload: { tweet_id: tweet.id, url: tweet.url } });
   log.info({ product: post.product, post: post.id, url: tweet.url }, "published");
   return { tweet_id: tweet.id, url: tweet.url };

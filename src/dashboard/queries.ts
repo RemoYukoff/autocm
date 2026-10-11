@@ -75,6 +75,8 @@ export interface ProductView {
   enabled: boolean;
   color: string;
   x: XAccountView | null;
+  /** Why this account's publishing is paused, or null. */
+  paused: string | null;
   /** "website": logged in to X, waiting for the product's website; "ready": posting. */
   setup: "website" | "ready";
   /** Set when product.yaml does not load (the account can only be deleted). */
@@ -213,12 +215,12 @@ export function productViews(now = new Date()): ProductView[] {
     .filter((a) => !known.has(a.product))
     .map((a) => {
       const x = xView(a.product, a);
-      return { slug: a.product, name: a.name || a.handle, handle: x!.handle, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: PENDING_COLOR, x, setup: "website", invalid: null };
+      return { slug: a.product, name: a.name || a.handle, handle: x!.handle, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: PENDING_COLOR, x, paused: pausedReason(a.product), setup: "website", invalid: null };
     });
   const ready = products.map((p): ProductView => {
     if (!("config" in p)) {
       const x = xView(p.slug, getXAccount(p.slug));
-      return { slug: p.slug, name: p.slug, handle: x?.handle ?? null, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: PENDING_COLOR, x, setup: "ready", invalid: p.error };
+      return { slug: p.slug, name: p.slug, handle: x?.handle ?? null, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: PENDING_COLOR, x, paused: pausedReason(p.slug), setup: "ready", invalid: p.error };
     }
     const c = p.config;
     const today = dayRangeUtc(now, c.timezone);
@@ -234,6 +236,7 @@ export function productViews(now = new Date()): ProductView[] {
       enabled: c.enabled,
       color: c.brand.colors.primary,
       x,
+      paused: pausedReason(c.slug),
       setup: "ready",
       invalid: null,
     };
@@ -242,5 +245,5 @@ export function productViews(now = new Date()): ProductView[] {
 }
 
 export function headerState(now = new Date()) {
-  return { now: now.toISOString(), paused: pausedReason(), global_daily_cap: env.globalDailyCap, products: productViews(now) };
+  return { now: now.toISOString(), global_daily_cap: env.globalDailyCap, products: productViews(now) };
 }

@@ -125,4 +125,5 @@ export function deleteXAccount(product: string): void {
 export function deleteProductData(product: string): void {
   const db = getDb();
   for (const table of ["slots", "posts", "events", "x_accounts"]) db.prepare(`DELETE FROM ${table} WHERE product = ?`).run(product);
+  db.prepare("DELETE FROM flags WHERE key IN (?, ?)").run(`paused:${product}`, `consecutive_failures:${product}`);
 }

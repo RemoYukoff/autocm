@@ -1,5 +1,5 @@
 // autocm dashboard: vanilla JS, no build step.
-import { createAccounts, loadSelected } from "/account.js";
+import { createAccounts, loadSelected, pickSelected } from "/account.js";
 
 const REFRESH_MS = 15_000;
 const FAST_REFRESH_MS = 3_000;
@@ -162,14 +162,14 @@ function slotHtml(slot) {
   const p = product(slot.product);
   const post = slot.post;
   let [statusLabel, tone] = SLOT_STATUS[slot.status];
-  if (slot.status === "generated" && state.data?.paused) [statusLabel, tone] = ["On hold: paused", "neutral"];
+  if (slot.status === "generated" && p.paused) [statusLabel, tone] = ["On hold: paused", "neutral"];
   const sameTz = p.timezone === localTz;
   const late = Date.parse(slot.scheduled_at) < Date.now();
 
   let body;
   if (slot.status === "pending") {
-    body = state.data?.paused
-      ? `<div class="placeholder"><p class="muted">Publishing is paused, so the bot is not writing this post yet.</p></div>`
+    body = p.paused
+      ? `<div class="placeholder"><p class="muted">Publishing is paused for ${esc(p.name)}, so the bot is not writing this post yet.</p></div>`
       : `<div class="placeholder"><p class="muted">The bot writes this post on its next pass (every 5 min).</p></div>`;
   } else if (slot.status === "claimed") {
     const since = slot.claimed_at;
@@ -233,35 +233,41 @@ function reconcile(container, items, keyOf, html) {
 
 // ---------- render ----------
 
+/** The selected account once it is set up and loads; pause, status and quotas only exist for it. */
+function readyAccount() {
+  const p = state.products.get(state.selected);
+  return p && p.setup === "ready" && !p.invalid ? p : null;
+}
+
 function renderHeader(d) {
   accounts.renderSelector();
-  const ready = d.products.filter((p) => p.setup === "ready" && !p.invalid);
-  const sessionProblems = ready.filter((p) => !p.x || p.x.error).map((p) => p.name);
-  const mode = sessionProblems.length
-    ? `<button type="button" class="pill pill-stop pill-btn" data-open-accounts title="Reconnect from the account menu">X session problem: ${esc(sessionProblems.join(", "))}</button>`
+  const p = readyAccount();
+  const pb = $("#pause-btn");
+  pb.hidden = !p;
+  if (!p) {
+    $("#status").innerHTML = "";
+    $("#quotas").innerHTML = "";
+    return;
+  }
+  const mode = !p.x || p.x.error
+    ? `<button type="button" class="pill pill-stop pill-btn" data-open-accounts title="Reconnect from the account menu">X session problem</button>`
     : "";
-  const paused = d.paused
-    ? `<span class="pill pill-stop">Paused</span><span class="muted small" title="${esc(d.paused)}">${esc(d.paused)}</span>`
+  const paused = p.paused
+    ? `<span class="pill pill-stop">Paused</span><span class="muted small" title="${esc(p.paused)}">${esc(p.paused)}</span>`
     : `<span class="pill pill-go">Publishing on</span>`;
   const running = d.upcoming.filter((s) => s.status === "claimed").length;
   $("#status").innerHTML = `${mode}${paused}${running ? `<span class="pill pill-busy"><span class="spinner sm" aria-hidden="true"></span>${running} writing</span>` : ""}`;
-  const pb = $("#pause-btn");
-  pb.textContent = d.paused ? "Resume publishing" : "Pause publishing";
-  pb.dataset.paused = d.paused ? "1" : "";
+  pb.textContent = p.paused ? "Resume publishing" : "Pause publishing";
+  pb.dataset.paused = p.paused ? "1" : "";
   pb.disabled = state.busy.has("pause");
 
-  $("#quotas").innerHTML = d.products
-    .filter((p) => p.setup === "ready" && !p.invalid && (!state.selected || p.slug === state.selected))
-    .map((p) => {
-      const pct = p.daily_cap ? Math.min(100, (p.today_count / p.daily_cap) * 100) : 100;
-      const live = p.x ? `posting as @${p.x.handle}` : "X session missing";
-      return `<div class="quota${p.enabled ? "" : " off"}" title="${esc(p.name)}: ${p.today_count} of ${p.daily_cap} posts today (${esc(p.timezone)}), ${live}">
-        <span class="quota-name">${esc(p.name)}</span>
-        <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>
-        <span class="quota-num">${p.today_count} of ${p.daily_cap} today</span>${p.enabled ? "" : `<span class="muted small">disabled</span>`}
-      </div>`;
-    })
-    .join("");
+  const pct = p.daily_cap ? Math.min(100, (p.today_count / p.daily_cap) * 100) : 100;
+  const live = p.x ? `posting as @${p.x.handle}` : "X session missing";
+  $("#quotas").innerHTML = `<div class="quota${p.enabled ? "" : " off"}" title="${esc(p.name)}: ${p.today_count} of ${p.daily_cap} posts today (${esc(p.timezone)}), ${live}">
+      <span class="quota-name">${esc(p.name)}</span>
+      <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>
+      <span class="quota-num">${p.today_count} of ${p.daily_cap} today</span>${p.enabled ? "" : `<span class="muted small">disabled</span>`}
+    </div>`;
 }
 
 function render() {
@@ -270,16 +276,17 @@ function render() {
   state.products = new Map(d.products.map((p) => [p.slug, p]));
   renderHeader(d);
   accounts.renderSetup();
+  const cur = state.products.get(state.selected);
+  $("#view-upcoming").hidden = !cur;
+  $("#no-accounts").hidden = !!cur;
+  if (!cur) return;
   reconcile($("#upcoming"), d.upcoming, (s) => `slot-${s.id}`, slotHtml);
   $("#upcoming-empty").hidden = d.upcoming.length > 0;
-  const who = state.selected ? state.products.get(state.selected)?.name : null;
-  $("#upcoming-empty").textContent = !d.products.length
-    ? "No accounts yet. Add one from the account menu (top left) to start posting."
-    : d.products.some((p) => p.setup === "ready")
-      ? `Nothing planned${who ? ` for ${who}` : ""}. The scheduler plans each day at 00:05 UTC.`
-      : "Posts are planned as soon as an account has its website.";
-  $("#lede-upcoming").textContent = d.paused
-    ? "Publishing is paused. Nothing goes out until you resume; posts past their time by more than 3 h are skipped."
+  $("#upcoming-empty").textContent = cur.setup === "website"
+    ? "Posts are planned as soon as the account has its website."
+    : `Nothing planned for ${cur.name}. The scheduler plans each day at 00:05 UTC.`;
+  $("#lede-upcoming").textContent = cur.paused
+    ? `Publishing is paused for ${cur.name}. Nothing goes out until you resume; posts past their time by more than 3 h are skipped.`
     : "Posts publish automatically at their time unless you discard them.";
   $("#count-upcoming").textContent = d.upcoming.length || "";
   tickClocks();
@@ -299,9 +306,17 @@ async function refresh() {
   if (loading) return loading;
   loading = (async () => {
     try {
+      const fetchState = (slug) => api("GET", slug ? `/api/state?product=${encodeURIComponent(slug)}` : "/api/state");
       const sel = state.selected;
-      const data = await api("GET", sel ? `/api/state?product=${encodeURIComponent(sel)}` : "/api/state");
+      let data = await fetchState(sel);
       if (sel !== state.selected) return; // the account changed while loading; a newer refresh follows
+      // Always show one account: the remembered one if it still exists, else the first.
+      const want = pickSelected(data.products, sel);
+      if (want !== sel) {
+        state.selected = want;
+        data = await fetchState(want);
+        if (want !== state.selected) return;
+      }
       const wasRunning = new Set((state.data?.account_jobs ?? []).filter((j) => j.status === "running").map((j) => j.id));
       state.data = data;
       render();
@@ -353,13 +368,15 @@ document.addEventListener("click", (ev) => {
 });
 
 $("#pause-btn").addEventListener("click", () => {
-  const paused = $("#pause-btn").dataset.paused === "1";
-  if (paused) {
-    run("pause", () => api("POST", "/api/resume"), (r) => (r.paused ? `Still paused: ${r.paused}` : "Publishing resumed."));
+  const p = readyAccount();
+  if (!p) return;
+  const base = `/api/accounts/${encodeURIComponent(p.slug)}`;
+  if ($("#pause-btn").dataset.paused === "1") {
+    run("pause", () => api("POST", `${base}/resume`), (r) => (r.paused ? `Still paused: ${r.paused}` : `Publishing resumed for ${p.name}.`));
   } else {
-    const reason = prompt("Pause all publishing. Reason (optional):", "");
+    const reason = prompt(`Pause publishing for ${p.name}. Reason (optional):`, "");
     if (reason === null) return;
-    run("pause", () => api("POST", "/api/pause", { reason }), "Publishing paused.");
+    run("pause", () => api("POST", `${base}/pause`, { reason }), `Publishing paused for ${p.name}.`);
   }
 });
 

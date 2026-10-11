@@ -104,13 +104,13 @@ program
     });
   });
 
-program.command("pause [reason...]").description("Stop all publishing").action((reason: string[] = []) => {
-  pause(reason.join(" ") || "manual");
-  console.log("paused");
+program.command("pause <product> [reason...]").description("Stop publishing for one account").action((slug: string, reason: string[] = []) => {
+  pause(loadProduct(slug).config.slug, reason.join(" ") || "manual");
+  console.log(`${slug} paused`);
 });
-program.command("resume").description("Resume publishing").action(() => {
-  resume();
-  console.log(pausedReason() ? `still paused: ${pausedReason()}` : "resumed");
+program.command("resume <product>").description("Resume publishing for one account").action((slug: string) => {
+  resume(loadProduct(slug).config.slug);
+  console.log(`${slug} resumed`);
 });
 
 program
@@ -132,8 +132,9 @@ x.command("connect <product>")
 x.command("whoami <product>").description("Profile of the product's logged-in X session").action(async (slug: string) => {
   console.log(await xWhoami(loadProduct(slug)));
 });
-program.command("status").description("Mode, pause state, products").action(() => {
-  console.log(`llm=${env.llm} paused=${pausedReason() ?? "no"}`);
+program.command("status").description("LLM mode and each account's pause state").action(() => {
+  console.log(`llm=${env.llm}`);
+  for (const slug of listProductSlugs()) console.log(`${slug} paused=${pausedReason(slug) ?? "no"}`);
 });
 
 program.parseAsync().catch((e: Error) => {

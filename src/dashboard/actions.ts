@@ -63,12 +63,12 @@ export function discardPost(postId: number): { post: PostRow; slot: SlotRow | nu
   return { post: getPost(postId)!, slot: slot ? (getSlot(slot.id) ?? null) : null };
 }
 
-export function pausePublishing(reason?: string): string | null {
-  pause(reason?.trim() || "paused from dashboard");
-  return pausedReason();
+export function pausePublishing(product: string, reason?: string): string | null {
+  pause(product, reason?.trim() || "paused from dashboard");
+  return pausedReason(product);
 }
 
-export function resumePublishing(): string | null {
-  resume();
-  return pausedReason();
+export function resumePublishing(product: string): string | null {
+  resume(product);
+  return pausedReason(product);
 }

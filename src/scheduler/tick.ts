@@ -87,12 +87,6 @@ async function generateDue(token: string): Promise<void> {
   const due = db.prepare("SELECT * FROM slots WHERE status = 'pending' ORDER BY scheduled_at").all() as unknown as SlotRow[];
   if (!due.length) return;
 
-  const paused = pausedReason();
-  if (paused) {
-    // Do not burn LLM quota while publishing is stopped; slots are skipped once they go 3 h overdue.
-    log.info({ paused, due: due.length }, "paused: not generating due slots");
-  }
-
   for (const slot of due) {
     const now = Date.now();
     if (Date.parse(slot.scheduled_at) < now - OVERDUE_SKIP_MS) {
@@ -100,7 +94,8 @@ async function generateDue(token: string): Promise<void> {
       if (Number(r.changes) === 1) slotEvent("slot_skipped", slot, { reason: "overdue > 3h before generation" });
       continue;
     }
-    if (paused) continue;
+    // Do not burn LLM quota while the account is paused; its slots are skipped once they go 3 h overdue.
+    if (pausedReason(slot.product)) continue;
 
     let enabled = true;
     try {

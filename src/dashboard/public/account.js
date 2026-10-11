@@ -1,4 +1,5 @@
 // Accounts: the selector menu and the two-step add flow (log in to X, then give the product's website).
+// Exactly one account is shown at a time: the remembered one, else the first. With none, the selector is "Add account".
 // No product settings are shown or editable: autocm builds them from the website. Vanilla JS, no build step.
 
 const LS_KEY = "autocm.account";
@@ -20,6 +21,13 @@ function saveSelected(slug) {
   }
 }
 
+/** The account to show: the remembered one if it still exists, else the first; null when there are none. */
+export function pickSelected(products, current) {
+  const slug = products.some((p) => p.slug === current) ? current : (products[0]?.slug ?? null);
+  if (slug !== current) saveSelected(slug);
+  return slug;
+}
+
 export function createAccounts(ctx) {
   const { $, esc, api, toast, refresh, state } = ctx;
 
@@ -35,8 +43,8 @@ export function createAccounts(ctx) {
   }
 
   function select(slug) {
-    state.selected = slug || null;
-    saveSelected(state.selected);
+    state.selected = slug;
+    saveSelected(slug);
     closeMenu();
     refresh();
   }
@@ -50,20 +58,39 @@ export function createAccounts(ctx) {
     if (p.setup === "website") return `<span class="acct-sub warn">@${esc(p.handle)} · needs its website</span>`;
     if (p.x?.error) return `<span class="acct-sub err">@${esc(p.x.handle)} · session problem</span>`;
     if (!p.x) return `<span class="acct-sub err">X session missing</span>`;
+    if (p.paused) return `<span class="acct-sub warn">@${esc(p.x.handle)} · paused</span>`;
     return `<span class="acct-sub">@${esc(p.x.handle)}</span>`;
+  }
+
+  const ADD_ITEM = `<span class="av av-plus" aria-hidden="true">+</span><span class="acct-text"><span class="acct-name">Add account</span><span class="acct-sub">Log in to an X account</span></span>`;
+
+  function addingHtml(job) {
+    return `<span class="spinner sm" aria-hidden="true"></span><span class="acct-text"><span class="acct-name">Adding an account</span><span class="acct-sub busy">${esc(job.step || "Log in to X in the window that opened")}</span></span>`;
   }
 
   function renderSelector() {
     const list = products();
-    if (state.selected && state.data && !list.some((p) => p.slug === state.selected)) {
-      state.selected = null;
-      saveSelected(null);
-    }
     const cur = list.find((p) => p.slug === state.selected);
-    const all = `<span class="av av-all" aria-hidden="true">${list.slice(0, 3).map((p) => `<i style="--av:${esc(p.color)}"></i>`).join("")}</span>`;
-    $("#acct-btn").innerHTML = cur
-      ? `${avatarHtml(cur)}<span class="acct-label"><span class="acct-name">${esc(cur.name)}</span>${cur.handle ? `<span class="acct-handle">@${esc(cur.handle)}</span>` : ""}</span><span class="caret" aria-hidden="true"></span>`
-      : `${all}<span class="acct-label"><span class="acct-name">All accounts</span></span><span class="caret" aria-hidden="true"></span>`;
+    const btn = $("#acct-btn");
+    const adding = addJob();
+    if (!cur) {
+      // No accounts yet: the selector itself adds one.
+      closeMenu();
+      btn.dataset.add = "1";
+      btn.removeAttribute("aria-haspopup");
+      btn.title = "Log in to an X account";
+      btn.disabled = !!adding;
+      btn.innerHTML = adding ? addingHtml(adding) : ADD_ITEM;
+      const big = $("[data-add-account]");
+      big.disabled = !!adding;
+      big.textContent = adding ? "Log in to X in the window that opened…" : "+ Add account";
+      return;
+    }
+    delete btn.dataset.add;
+    btn.setAttribute("aria-haspopup", "menu");
+    btn.title = "Choose the account to show";
+    btn.disabled = false;
+    btn.innerHTML = `${avatarHtml(cur)}<span class="acct-label"><span class="acct-name">${esc(cur.name)}</span>${cur.handle ? `<span class="acct-handle">@${esc(cur.handle)}</span>` : ""}</span><span class="caret" aria-hidden="true"></span>`;
 
     const rows = list
       .map((p) => {
@@ -80,18 +107,10 @@ export function createAccounts(ctx) {
         </div>`;
       })
       .join("");
-    const adding = addJob();
     $("#acct-menu").innerHTML = `
-      <div class="acct-row"><button type="button" class="acct-item" role="menuitemradio" aria-checked="${!state.selected}" data-acct-select="">
-        ${all}<span class="acct-text"><span class="acct-name">All accounts</span><span class="acct-sub">${list.length} ${list.length === 1 ? "account" : "accounts"}</span></span>
-      </button></div>
       ${rows}
       <div class="acct-sep" role="separator"></div>
-      ${
-        adding
-          ? `<div class="acct-item acct-add"><span class="spinner sm" aria-hidden="true"></span><span class="acct-text"><span class="acct-name">Adding an account</span><span class="acct-sub busy">${esc(adding.step || "Log in to X in the window that opened")}</span></span></div>`
-          : `<button type="button" class="acct-item acct-add" role="menuitem" data-acct-add><span class="av av-plus" aria-hidden="true">+</span><span class="acct-text"><span class="acct-name">Add account</span><span class="acct-sub">Log in to an X account</span></span></button>`
-      }`;
+      ${adding ? `<div class="acct-item acct-add">${addingHtml(adding)}</div>` : `<button type="button" class="acct-item acct-add" role="menuitem" data-acct-add>${ADD_ITEM}</button>`}`;
   }
 
   function openMenu() {
@@ -106,11 +125,13 @@ export function createAccounts(ctx) {
 
   $("#acct-btn").addEventListener("click", (ev) => {
     ev.stopPropagation();
-    if ($("#acct-menu").hidden) openMenu();
+    if ($("#acct-btn").dataset.add) add();
+    else if ($("#acct-menu").hidden) openMenu();
     else closeMenu();
   });
   document.addEventListener("click", (ev) => {
     if (!ev.target.closest("#acct")) closeMenu();
+    if (ev.target.closest("[data-add-account]")) add();
   });
   document.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape" && !$("#acct-menu").hidden) {
@@ -161,7 +182,7 @@ export function createAccounts(ctx) {
     try {
       await api("POST", `/api/accounts/${encodeURIComponent(slug)}/delete`);
       toast(`${who} deleted.`, "ok");
-      if (state.selected === slug) select("");
+      if (state.selected === slug) select(null); // the next refresh shows the first remaining account
     } catch (e) {
       toast(e.message, "error");
     }
@@ -202,7 +223,7 @@ export function createAccounts(ctx) {
   function renderSetup() {
     const el = $("#setup");
     const focused = document.activeElement?.closest?.("[data-setup]")?.dataset.setup;
-    const pending = products().filter((p) => p.setup === "website" && (!state.selected || p.slug === state.selected));
+    const pending = products().filter((p) => p.setup === "website" && p.slug === state.selected);
     el.innerHTML = pending.map(setupCard).join("");
     el.hidden = pending.length === 0;
     if (focused) el.querySelector(`[data-setup="${CSS.escape(focused)}"] input`)?.focus();

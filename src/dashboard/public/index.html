@@ -15,20 +15,25 @@
         <span class="brand-name">autocm</span>
       </div>
       <div class="acct" id="acct">
-        <button class="acct-btn" id="acct-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu" title="Choose the account to show"><span class="acct-label"><span class="acct-name">Accounts</span></span></button>
+        <button class="acct-btn" id="acct-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu" title="Choose the account to show"><span class="acct-label"><span class="acct-name">Loading…</span></span></button>
         <div class="acct-menu" id="acct-menu" role="menu" aria-label="Accounts" hidden></div>
       </div>
       <div class="status" id="status" aria-live="polite"></div>
       <div class="top-actions">
-        <button class="btn" id="pause-btn" type="button"></button>
+        <button class="btn" id="pause-btn" type="button" hidden></button>
       </div>
     </div>
     <div class="quotas" id="quotas"></div>
   </header>
 
   <main>
+    <section class="no-accounts" id="no-accounts" hidden>
+      <h1 class="view-title">No accounts yet</h1>
+      <p class="lede">Add an X account: log in to it, then give the website of the product it posts about.</p>
+      <button type="button" class="btn btn-primary" data-add-account>+ Add account</button>
+    </section>
     <div class="setup" id="setup" hidden></div>
-    <section id="view-upcoming" class="view">
+    <section id="view-upcoming" class="view" hidden>
       <h1 class="view-title">Up next <span class="count" id="count-upcoming"></span></h1>
       <p class="lede" id="lede-upcoming">Posts publish automatically at their time unless you discard them.</p>
       <ol class="timeline" id="upcoming"></ol>

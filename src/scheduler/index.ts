@@ -2,7 +2,6 @@
 import cron from "node-cron";
 import { loadProducts } from "../core/config.ts";
 import { log } from "../core/log.ts";
-import { pausedReason } from "../safety/pause.ts";
 import { planProductSlots } from "./plan.ts";
 import { currentTick, recover, tick as runTick } from "./tick.ts";
 
@@ -26,7 +25,7 @@ export async function tick(): Promise<void> {
 
 /** Long-running daemon: tick every 5 minutes, plan daily. */
 export async function runDaemon(): Promise<void> {
-  log.info({ paused: pausedReason() ?? "no" }, "autocm daemon starting");
+  log.info("autocm daemon starting");
   const rec = recover();
   if (rec.slots || rec.posts) log.warn(rec, "startup recovery");
   log.info({ created: await planSlots(2) }, "startup planning done");
