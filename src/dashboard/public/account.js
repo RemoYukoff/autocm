@@ -29,7 +29,7 @@ export function pickSelected(products, current) {
 }
 
 export function createAccounts(ctx) {
-  const { $, esc, api, toast, refresh, state } = ctx;
+  const { $, esc, api, toast, refresh, state, ask } = ctx;
 
   const products = () => state.data?.products ?? [];
   const jobs = () => state.data?.account_jobs ?? [];
@@ -154,7 +154,7 @@ export function createAccounts(ctx) {
   // ---------- actions ----------
 
   async function add() {
-    if (!confirm("A browser window opens on this computer. Log in there to the X account you want autocm to post from; it closes by itself when you are in.")) return;
+    if (!(await ask({ title: "Add an X account", body: "A browser window opens on this computer. Log in there to the X account autocm should post from; it closes by itself once you are in.", ok: "Open X login" }))) return;
     try {
       await api("POST", "/api/accounts");
       toast("Log in to X in the window that opened.", "ok");
@@ -166,7 +166,7 @@ export function createAccounts(ctx) {
 
   async function reconnect(slug) {
     const p = products().find((x) => x.slug === slug);
-    if (!confirm(`A browser window opens. Log in there as @${p?.handle ?? slug}; it closes by itself when you are in.`)) return;
+    if (!(await ask({ title: `Reconnect @${p?.handle ?? slug}`, body: `A browser window opens. Log in there as @${p?.handle ?? slug}; it closes by itself once you are in.`, ok: "Open X login" }))) return;
     try {
       await api("POST", `/api/accounts/${encodeURIComponent(slug)}/reconnect`);
       toast(`Log in as @${p?.handle ?? slug} in the window that opened.`, "ok");
@@ -179,7 +179,7 @@ export function createAccounts(ctx) {
   async function remove(slug) {
     const p = products().find((x) => x.slug === slug);
     const who = p?.handle ? `@${p.handle}` : (p?.name ?? slug);
-    if (!confirm(`Delete ${who}? Its X session and every planned post are removed. This cannot be undone.`)) return;
+    if (!(await ask({ title: `Delete ${who}?`, body: "Its X session and every planned post are removed. This cannot be undone.", ok: "Delete", danger: true }))) return;
     try {
       await api("POST", `/api/accounts/${encodeURIComponent(slug)}/delete`);
       toast(`${who} deleted.`, "ok");

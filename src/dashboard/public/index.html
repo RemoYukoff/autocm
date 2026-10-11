@@ -23,7 +23,6 @@
         <button class="btn" id="pause-btn" type="button" hidden></button>
       </div>
     </div>
-    <div class="quotas" id="quotas"></div>
   </header>
 
   <main>
@@ -43,6 +42,17 @@
       <p class="empty" id="upcoming-empty" hidden>Nothing planned. The scheduler plans each day at 00:05 UTC.</p>
     </section>
   </main>
+
+  <dialog class="confirm" id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+    <form method="dialog">
+      <h2 class="confirm-title" id="confirm-title"></h2>
+      <p class="confirm-body" id="confirm-body"></p>
+      <div class="confirm-actions">
+        <button class="btn" value="cancel">Cancel</button>
+        <button class="btn btn-primary" id="confirm-ok" value="ok"></button>
+      </div>
+    </form>
+  </dialog>
 
   <div class="toasts" id="toasts" aria-live="assertive"></div>
   <script src="/app.js" type="module"></script>

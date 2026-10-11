@@ -58,13 +58,6 @@ a:hover { text-decoration: underline; }
 .status .small { max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .top-actions { display: flex; gap: 8px; }
 
-.quotas { display: flex; gap: 22px; flex-wrap: wrap; padding: 12px 0 2px; }
-.quota { display: flex; align-items: center; gap: 10px; font-size: 13px; }
-.quota.off { opacity: 0.55; }
-.quota-name { font-weight: 550; }
-.quota-num { color: var(--muted); font-variant-numeric: tabular-nums; }
-.meter { width: 72px; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
-.meter span { display: block; height: 100%; background: var(--ink); border-radius: 4px; }
 
 .count { color: var(--faint); font-variant-numeric: tabular-nums; margin-left: 2px; }
 
@@ -84,6 +77,25 @@ a:hover { text-decoration: underline; }
 .btn:disabled { opacity: 0.5; cursor: progress; }
 .btn-danger { color: var(--stop); background: transparent; border-color: rgb(240 98 93 / 0.35); }
 .btn-danger:hover:not(:disabled) { border-color: var(--stop); background: rgb(240 98 93 / 0.08); }
+.btn-danger-solid { background: var(--stop); border-color: var(--stop); color: #fff; font-weight: 600; }
+.btn-danger-solid:hover:not(:disabled) { background: #f47a76; border-color: #f47a76; }
+
+/* In-page confirmation dialog. */
+.confirm {
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px 22px 18px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.5);
+}
+.confirm::backdrop { background: rgb(8 10 12 / 0.6); backdrop-filter: blur(2px); }
+.confirm[open] { animation: confirm-in 0.14s ease-out; }
+@keyframes confirm-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+.confirm-title { margin: 0; font-size: 16px; font-weight: 600; }
+.confirm-body { margin: 8px 0 0; color: var(--muted); }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
 .pill {
   display: inline-flex;

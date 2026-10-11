@@ -1,14 +1,11 @@
-// Read side of the dashboard: slots, posts and header stats shaped for the UI.
+// Read side of the dashboard: slots, posts and accounts shaped for the UI.
 import path from "node:path";
 import { listProductSlugs, loadProduct, loadProducts } from "../core/config.ts";
 import { getDb, getXAccount, listXAccounts } from "../core/db/index.ts";
-import { env } from "../core/env.ts";
 import { OUT_DIR } from "../core/paths.ts";
 import type { MediaResult, PostRow, PostStatus, Product, XAccount } from "../core/types.ts";
 import type { SlotRow } from "../scheduler/index.ts";
-import { countPublishedBetween } from "../safety/guards.ts";
 import { isPaused } from "../safety/pause.ts";
-import { dayRangeUtc } from "../safety/time.ts";
 import { avatarFile } from "./accounts.ts";
 
 
@@ -55,8 +52,6 @@ export interface ProductView {
   /** @handle of the connected X account, shown on previews. */
   handle: string | null;
   timezone: string;
-  daily_cap: number;
-  today_count: number;
   live: boolean;
   enabled: boolean;
   color: string;
@@ -170,30 +165,27 @@ function xView(slug: string, a: XAccount | null): XAccountView | null {
 const PENDING_COLOR = "#5f6873";
 
 /** Every account: products, plus X logins still waiting for their website. */
-export function productViews(now = new Date()): ProductView[] {
+export function productViews(): ProductView[] {
   const products = safeProducts();
   const known = new Set(products.map((p) => ("config" in p ? p.config.slug : p.slug)));
   const pending: ProductView[] = listXAccounts()
     .filter((a) => !known.has(a.product))
     .map((a) => {
       const x = xView(a.product, a);
-      return { slug: a.product, name: a.name || a.handle, handle: x!.handle, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: PENDING_COLOR, x, paused: isPaused(a.product), setup: "website", invalid: null };
+      return { slug: a.product, name: a.name || a.handle, handle: x!.handle, timezone: "UTC", live: false, enabled: false, color: PENDING_COLOR, x, paused: isPaused(a.product), setup: "website", invalid: null };
     });
   const ready = products.map((p): ProductView => {
     if (!("config" in p)) {
       const x = xView(p.slug, getXAccount(p.slug));
-      return { slug: p.slug, name: p.slug, handle: x?.handle ?? null, timezone: "UTC", daily_cap: 0, today_count: 0, live: false, enabled: false, color: PENDING_COLOR, x, paused: isPaused(p.slug), setup: "ready", invalid: p.error };
+      return { slug: p.slug, name: p.slug, handle: x?.handle ?? null, timezone: "UTC", live: false, enabled: false, color: PENDING_COLOR, x, paused: isPaused(p.slug), setup: "ready", invalid: p.error };
     }
     const c = p.config;
-    const today = dayRangeUtc(now, c.timezone);
     const x = xView(c.slug, p.xAccount);
     return {
       slug: c.slug,
       name: c.name,
       handle: x?.handle ?? null,
       timezone: c.timezone,
-      daily_cap: c.cadence.daily_cap,
-      today_count: countPublishedBetween(today.start, today.end, c.slug),
       live: p.xAccount !== null,
       enabled: c.enabled,
       color: c.brand.colors.primary,
@@ -207,5 +199,5 @@ export function productViews(now = new Date()): ProductView[] {
 }
 
 export function headerState(now = new Date()) {
-  return { now: now.toISOString(), global_daily_cap: env.globalDailyCap, products: productViews(now) };
+  return { now: now.toISOString(), products: productViews() };
 }

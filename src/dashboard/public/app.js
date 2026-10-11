@@ -103,9 +103,29 @@ function toast(msg, kind = "info") {
   setTimeout(() => el.remove(), kind === "error" ? 9400 : 4900);
 }
 
+/** In-page confirmation (replaces window.confirm). Resolves true on the OK button; Cancel, Escape or a click outside is false. */
+function ask({ title, body = "", ok = "OK", danger = false }) {
+  const d = $("#confirm");
+  if (d.open) d.close();
+  $("#confirm-title").textContent = title;
+  $("#confirm-body").textContent = body;
+  $("#confirm-body").hidden = !body;
+  const b = $("#confirm-ok");
+  b.textContent = ok;
+  b.className = `btn ${danger ? "btn-danger-solid" : "btn-primary"}`;
+  d.returnValue = "";
+  d.showModal();
+  b.focus();
+  return new Promise((resolve) => d.addEventListener("close", () => resolve(d.returnValue === "ok"), { once: true }));
+}
+
+$("#confirm").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget) ev.currentTarget.close(); // the backdrop
+});
+
 // ---------- pieces ----------
 
-const accounts = createAccounts({ $, esc, api: (...a) => api(...a), toast: (...a) => toast(...a), refresh: () => refresh(), state });
+const accounts = createAccounts({ $, esc, api: (...a) => api(...a), toast: (...a) => toast(...a), refresh: () => refresh(), state, ask });
 
 function product(slug) {
   return state.products.get(slug) ?? { slug, name: slug, handle: null, timezone: "UTC", color: "#8b95a3" };
@@ -221,7 +241,7 @@ function reconcile(container, items, keyOf, html) {
 
 // ---------- render ----------
 
-/** The selected account once it is set up and loads; pause, status and quotas only exist for it. */
+/** The selected account once it is set up and loads; pause, status and Generate only exist for it. */
 function readyAccount() {
   const p = state.products.get(state.selected);
   return p && p.setup === "ready" && !p.invalid ? p : null;
@@ -238,7 +258,6 @@ function renderHeader(d) {
   gb.textContent = gb.disabled ? "Adding…" : "+ Generate post";
   if (!p) {
     $("#status").innerHTML = "";
-    $("#quotas").innerHTML = "";
     return;
   }
   const mode = !p.x || p.x.error
@@ -249,14 +268,6 @@ function renderHeader(d) {
   pb.textContent = p.paused ? "Resume publishing" : "Pause publishing";
   pb.dataset.paused = p.paused ? "1" : "";
   pb.disabled = state.busy.has("pause");
-
-  const pct = p.daily_cap ? Math.min(100, (p.today_count / p.daily_cap) * 100) : 100;
-  const live = p.x ? `posting as @${p.x.handle}` : "X session missing";
-  $("#quotas").innerHTML = `<div class="quota${p.enabled ? "" : " off"}" title="${esc(p.name)}: ${p.today_count} of ${p.daily_cap} posts today (${esc(p.timezone)}), ${live}">
-      <span class="quota-name">${esc(p.name)}</span>
-      <span class="meter" aria-hidden="true"><span style="width:${pct}%"></span></span>
-      <span class="quota-num">${p.today_count} of ${p.daily_cap} today</span>${p.enabled ? "" : `<span class="muted small">disabled</span>`}
-    </div>`;
 }
 
 function render() {
@@ -342,13 +353,13 @@ async function run(key, fn, okMsg) {
   }
 }
 
-document.addEventListener("click", (ev) => {
+document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("button[data-action]");
   if (!b) return;
   const id = Number(b.dataset.id);
   const action = b.dataset.action;
   if (action === "discard") {
-    if (!confirm("Discard this post? It will not be published.")) return;
+    if (!(await ask({ title: "Discard this post?", body: "It will not be published.", ok: "Discard", danger: true }))) return;
     run(`discard:${id}`, () => api("POST", `/api/posts/${id}/discard`), "Post discarded.");
   } else if (action === "edit-time") {
     state.editing = id;
