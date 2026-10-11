@@ -223,11 +223,8 @@ function renderHeader(d) {
   const mode = !p.x || p.x.error
     ? `<button type="button" class="pill pill-stop pill-btn" data-open-accounts title="Reconnect from the account menu">X session problem</button>`
     : "";
-  const paused = p.paused
-    ? `<span class="pill pill-stop">Paused</span>`
-    : `<span class="pill pill-go">Publishing on</span>`;
   const running = d.upcoming.filter((s) => s.status === "claimed").length;
-  $("#status").innerHTML = `${mode}${paused}${running ? `<span class="pill pill-busy"><span class="spinner sm" aria-hidden="true"></span>${running} writing</span>` : ""}`;
+  $("#status").innerHTML = `${mode}${running ? `<span class="pill pill-busy"><span class="spinner sm" aria-hidden="true"></span>${running} writing</span>` : ""}`;
   pb.textContent = p.paused ? "Resume publishing" : "Pause publishing";
   pb.dataset.paused = p.paused ? "1" : "";
   pb.disabled = state.busy.has("pause");

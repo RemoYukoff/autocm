@@ -58,7 +58,6 @@ export function createAccounts(ctx) {
     if (p.setup === "website") return `<span class="acct-sub warn">@${esc(p.handle)} · needs its website</span>`;
     if (p.x?.error) return `<span class="acct-sub err">@${esc(p.x.handle)} · session problem</span>`;
     if (!p.x) return `<span class="acct-sub err">X session missing</span>`;
-    if (p.paused) return `<span class="acct-sub warn">@${esc(p.x.handle)} · paused</span>`;
     return `<span class="acct-sub">@${esc(p.x.handle)}</span>`;
   }
 
@@ -77,6 +76,7 @@ export function createAccounts(ctx) {
       // No accounts yet: the selector itself adds one.
       closeMenu();
       btn.dataset.add = "1";
+      btn.classList.remove("paused");
       btn.removeAttribute("aria-haspopup");
       btn.title = "Log in to an X account";
       btn.disabled = !!adding;
@@ -87,8 +87,9 @@ export function createAccounts(ctx) {
       return;
     }
     delete btn.dataset.add;
+    btn.classList.toggle("paused", !!cur.paused);
+    btn.title = cur.paused ? "Publishing paused for this account" : "Choose the account to show";
     btn.setAttribute("aria-haspopup", "menu");
-    btn.title = "Choose the account to show";
     btn.disabled = false;
     btn.innerHTML = `${avatarHtml(cur)}<span class="acct-label"><span class="acct-name">${esc(cur.name)}</span>${cur.handle ? `<span class="acct-handle">@${esc(cur.handle)}</span>` : ""}</span><span class="caret" aria-hidden="true"></span>`;
 
@@ -99,7 +100,7 @@ export function createAccounts(ctx) {
           if (!p.invalid && (!p.x || p.x.error)) tools.push(`<button type="button" class="mini mini-warn" data-acct-reconnect="${esc(p.slug)}">Reconnect</button>`);
           tools.push(`<button type="button" class="mini" data-acct-delete="${esc(p.slug)}" aria-label="Delete ${esc(p.name)}">Delete</button>`);
         }
-        return `<div class="acct-row${p.enabled || p.setup === "website" ? "" : " off"}">
+        return `<div class="acct-row${p.enabled || p.setup === "website" ? "" : " off"}${p.paused ? " paused" : ""}">
           <button type="button" class="acct-item" role="menuitemradio" aria-checked="${p.slug === state.selected}" data-acct-select="${esc(p.slug)}">
             ${avatarHtml(p)}<span class="acct-text"><span class="acct-name">${esc(p.name)}</span>${subline(p)}</span>
           </button>

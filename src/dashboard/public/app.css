@@ -255,6 +255,9 @@ main { padding: 8px max(20px, calc((100vw - 1240px) / 2)) 60px; }
 }
 .acct-btn:hover { border-color: var(--faint); }
 .acct-btn[aria-expanded="true"] { border-color: var(--muted); }
+/* A paused account: yellow ring on the selector and on its avatar in the menu. */
+.acct-btn.paused { border-color: var(--warn); }
+.acct-btn.paused .av, .acct-row.paused .av { box-shadow: 0 0 0 2px var(--warn); }
 .acct-label { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .acct-btn .acct-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-handle { color: var(--muted); font-weight: 450; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
