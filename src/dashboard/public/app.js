@@ -359,7 +359,7 @@ document.addEventListener("click", async (ev) => {
   const id = Number(b.dataset.id);
   const action = b.dataset.action;
   if (action === "discard") {
-    if (!(await ask({ title: "Discard this post?", body: "It will not be published.", ok: "Discard", danger: true }))) return;
+    if (!(await ask({ title: "Discard this post?", body: "There is no going back.", ok: "Discard", danger: true }))) return;
     run(`discard:${id}`, () => api("POST", `/api/posts/${id}/discard`), "Post discarded.");
   } else if (action === "edit-time") {
     state.editing = id;

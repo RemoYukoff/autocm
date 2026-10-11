@@ -91,7 +91,8 @@ export function createAccounts(ctx) {
     btn.title = cur.paused ? "Publishing paused for this account" : "Choose the account to show";
     btn.setAttribute("aria-haspopup", "menu");
     btn.disabled = false;
-    btn.innerHTML = `${avatarHtml(cur)}<span class="acct-label"><span class="acct-name">${esc(cur.name)}</span>${cur.handle ? `<span class="acct-handle">@${esc(cur.handle)}</span>` : ""}</span><span class="caret" aria-hidden="true"></span>`;
+    const mark = cur.paused ? `<span class="pause-mark" aria-label="paused"><i></i><i></i></span>` : "";
+    btn.innerHTML = `${avatarHtml(cur)}<span class="acct-label"><span class="acct-name">${esc(cur.name)}</span>${cur.handle ? `<span class="acct-handle">@${esc(cur.handle)}</span>` : ""}</span>${mark}<span class="caret" aria-hidden="true"></span>`;
 
     const rows = list
       .map((p) => {
