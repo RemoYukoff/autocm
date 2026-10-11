@@ -265,7 +265,13 @@ function renderHeader(d) {
     : "";
   const running = d.upcoming.filter((s) => s.status === "claimed").length;
   $("#status").innerHTML = `${mode}${running ? `<span class="pill pill-busy"><span class="spinner sm" aria-hidden="true"></span>${running} writing</span>` : ""}`;
-  pb.textContent = p.paused ? "Resume publishing" : "Pause publishing";
+  const label = p.paused ? `Resume publishing for ${p.name}` : `Pause publishing for ${p.name}`;
+  pb.innerHTML = p.paused
+    ? `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L5.9 2.7a.6.6 0 0 0-.9.5z"/></svg>`
+    : `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="3" width="2.6" height="10" rx=".8"/><rect x="9.4" y="3" width="2.6" height="10" rx=".8"/></svg>`;
+  pb.title = label;
+  pb.setAttribute("aria-label", label);
+  pb.classList.toggle("paused", !!p.paused);
   pb.dataset.paused = p.paused ? "1" : "";
   pb.disabled = state.busy.has("pause");
 }
