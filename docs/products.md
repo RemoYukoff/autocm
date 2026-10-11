@@ -42,7 +42,7 @@ session and its posts. The rest of this file documents what autocm writes, for r
    | `brand.logo` | Logo path (SVG preferred). |
    | `brand.guidelines` | The design manual the designer follows: look and mood, type, color use, shapes, motifs, what is off-brand. Read from the website screenshot. |
    | `brand.reference` | Screenshot of the website (`assets/brand/site.png`), shown to the designer as visual reference. |
-   | `assets.clips` | `{id, path, description, start?, end?}`. The marketer picks clips by `description`, so say exactly what is on screen and what is said, plus aspect ratio and duration. |
+   | `assets.clips` | `{id, path, description}`: real product footage the editor may cut into a video. Say exactly what is on screen and what is said, plus aspect ratio and duration. |
    | `assets.screens` | `{id, path, description}`: product screenshots the designer may place in an image. |
    | `links` | `cta_url`, optional `utm`, `max_link_ratio` (share of recent posts allowed to carry a link). |
    | `hashtags` | `max_per_post`. |

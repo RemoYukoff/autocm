@@ -126,11 +126,22 @@ export interface DesignRender {
   problems: string[];
 }
 
-/** Render designer HTML to `outPath` at the aspect's canvas size. Pass a browser to reuse it. */
-export async function renderDesign(html: string, product: Product, aspect: ImageAspect, outPath: string, browser?: Browser): Promise<DesignRender> {
-  const { w, h } = IMAGE_SIZES[aspect];
+export interface RenderOptions {
+  /** Reuse this browser instead of launching one. */
+  browser?: Browser;
+  /** Files the page references as `asset:<name>` (name -> file on disk), e.g. generated images. */
+  assets?: Record<string, string>;
+  /** Pause every CSS animation at this many seconds before the screenshot (video scenes). */
+  seek?: number;
+}
+
+/** Render designer HTML to `outPath` at the canvas size (an image aspect, or explicit pixels for video scenes). */
+export async function renderDesign(html: string, product: Product, size: ImageAspect | { w: number; h: number }, outPath: string, opts: RenderOptions = {}): Promise<DesignRender> {
+  const { browser, assets = {}, seek } = opts;
+  const { w, h } = typeof size === "string" ? IMAGE_SIZES[size] : size;
   const served = serve(product);
-  const page_ = withBase(html, w, h);
+  for (const [name, file] of Object.entries(assets)) served.files.set(`/asset/${name}`, { body: fs.readFileSync(file), type: MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream" });
+  const page_ = withBase(html.replace(/asset:([A-Za-z0-9._-]+)/g, "/asset/$1"), w, h);
   const blocked = new Set<string>();
   const errors: string[] = [];
 
@@ -166,11 +177,19 @@ export async function renderDesign(html: string, product: Product, aspect: Image
       return route.fulfill({ status: 200, contentType: MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream", body: fs.readFileSync(file) });
     });
     await page.goto(`${ORIGIN}/design.html`, { waitUntil: "load", timeout: 30_000 });
-    await page.evaluate(async () => {
+    await page.evaluate(async (t) => {
       await document.fonts.ready;
       await Promise.all([...document.images].map((img) => img.decode().catch(() => {})));
+      // Same seek as remotion/src/Edit.tsx: paused, delay shifted back by t.
+      if (t !== null)
+        for (const el of document.querySelectorAll<HTMLElement>("*")) {
+          const cs = getComputedStyle(el);
+          if (cs.animationName === "none") continue;
+          el.style.animationDelay = cs.animationDelay.split(",").map((d) => `${(d.trim().endsWith("ms") ? parseFloat(d) / 1000 : parseFloat(d)) - t}s`).join(",");
+          el.style.animationPlayState = "paused";
+        }
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    });
+    }, seek ?? null);
     const report = (await page.evaluate(inspectPage, { w, h, min: minFontPx(w) })) as PageReport;
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     await page.screenshot({ path: outPath, type: "png", clip: { x: 0, y: 0, width: w, height: h } });

@@ -1,6 +1,6 @@
 // Single seam to the LLM. The default adapter uses the Claude Agent SDK, which runs on the
 // user's Claude Code subscription login (no API key needed).
-import { createSdkMcpServer, query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, type HookCallbackMatcher, type McpServerConfig, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -28,6 +28,19 @@ export interface CallOptions {
   maxTurns?: number;
   /** Tries before giving up (default 2). Calls whose tools keep state retry on their own instead. */
   attempts?: number;
+  /** Remote MCP servers (logged in through Claude Code's own OAuth) and the only tools the call may use from each. */
+  remote?: RemoteMcp[];
+  /**
+   * Checked before every remote tool call: return `{ deny }` to refuse it (the model sees the reason) or
+   * `{ input }` to run it with a rewritten input.
+   */
+  guard?: (tool: string, input: Record<string, unknown>) => { deny: string } | { input: Record<string, unknown> };
+}
+
+export interface RemoteMcp {
+  name: string;
+  url: string;
+  tools: string[];
 }
 
 interface AdapterResult {
@@ -108,6 +121,24 @@ async function* userMessage(prompt: string, images: string[]): AsyncIterable<SDK
   };
 }
 
+function guardHook(guard: NonNullable<CallOptions["guard"]>): HookCallbackMatcher {
+  return {
+    hooks: [
+      async (input) => {
+        // Only remote MCP tools are guarded; our own tools and the SDK's (StructuredOutput) pass untouched.
+        if (input.hook_event_name !== "PreToolUse" || !input.tool_name.startsWith("mcp__") || input.tool_name.startsWith(`mcp__${SERVER}__`)) return {};
+        const verdict = guard(input.tool_name, (input.tool_input ?? {}) as Record<string, unknown>);
+        return {
+          hookSpecificOutput:
+            "deny" in verdict
+              ? { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: verdict.deny }
+              : { hookEventName: "PreToolUse", permissionDecision: "allow", updatedInput: verdict.input },
+        };
+      },
+    ],
+  };
+}
+
 const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "autocm-llm-"));
   // Without this, an API key in the environment would win over the subscription login.
@@ -115,6 +146,7 @@ const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
   delete childEnv.ANTHROPIC_API_KEY;
 
   const tools = opts.tools ?? [];
+  const remote = opts.remote ?? [];
   const images = opts.images ?? [];
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), opts.timeoutMs ?? 300_000);
@@ -128,8 +160,12 @@ const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
         outputFormat: { type: "json_schema", schema: jsonSchema as Record<string, unknown> },
         // No built-in tools; only our own in-process ones, allowed without asking.
         tools: [],
-        mcpServers: tools.length ? { [SERVER]: createSdkMcpServer({ name: SERVER, tools }) } : {},
-        allowedTools: tools.map((t) => `mcp__${SERVER}__${t.name}`),
+        mcpServers: {
+          ...(tools.length ? { [SERVER]: createSdkMcpServer({ name: SERVER, tools }) } : {}),
+          ...Object.fromEntries(remote.map((r): [string, McpServerConfig] => [r.name, { type: "http", url: r.url }])),
+        },
+        allowedTools: [...tools.map((t) => `mcp__${SERVER}__${t.name}`), ...remote.flatMap((r) => r.tools.map((t) => `mcp__${r.name}__${t}`))],
+        hooks: opts.guard ? { PreToolUse: [guardHook(opts.guard)] } : {},
         permissionMode: "dontAsk",
         // Keep the user's own settings, hooks, CLAUDE.md, plugins and MCP servers out of the prompt.
         settingSources: [],

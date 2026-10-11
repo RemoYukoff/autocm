@@ -5,7 +5,7 @@ import { checkDuplicate } from "./agents/dedupe.ts";
 import { writeDraft, type Written } from "./agents/copywriter.ts";
 import { mediaIssues, textIssues } from "./agents/checks.ts";
 import { planBrief } from "./agents/marketer.ts";
-import { capabilitiesFor, loadProduct } from "./core/config.ts";
+import { loadProduct } from "./core/config.ts";
 import { getPost, insertPost, logEvent, recentPosts, updatePost } from "./core/db/index.ts";
 import { log } from "./core/log.ts";
 import { postOutDir } from "./core/paths.ts";
@@ -27,7 +27,6 @@ const MAX_DEDUPE_RETRIES = 2;
  */
 export async function generatePost(productSlug: string, opts: GenerateOptions = {}): Promise<PostRow> {
   const product = loadProduct(productSlug);
-  const caps = capabilitiesFor(product);
   const history = recentPosts(productSlug, 30);
   const row = insertPost(productSlug, { status: "generating", slot_id: opts.slotId ?? null });
   const postId = row.id;
@@ -41,7 +40,7 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
 
     const newBrief = async (): Promise<Brief> => {
       for (let i = 0; ; i++) {
-        const b = await planBrief({ product, caps, history, avoid, postId });
+        const b = await planBrief({ product, history, avoid, postId });
         const dup = await checkDuplicate(product, b, history, postId);
         if (!dup.duplicate || i >= MAX_DEDUPE_RETRIES) {
           if (dup.duplicate) plog.warn({ angle: b.angle }, "still duplicate after retries; keeping the last idea");
@@ -62,7 +61,7 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
     }
     const draft = written.draft;
     save("copy.json", written);
-    const media: MediaResult = await produceMedia(brief, draft, product, caps, outDir, postId);
+    const media: MediaResult = await produceMedia(brief, draft, product, outDir, postId);
     const issues = [...textIssues(draft), ...mediaIssues(brief, media)];
     updatePost(postId, { attempts: 1 });
     save("media.json", media);

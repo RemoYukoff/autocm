@@ -2,7 +2,7 @@
 
 Autonomous community manager for X. For every product in `products/<slug>/` a marketing agent decides each post
 (what it is for, what kind of post, text, image or video), a copywriter writes it, a designer agent builds its image
-from scratch in the brand's style, and it publishes on a schedule.
+or a motion-design agent cuts its video from scratch in the brand's style, and it publishes on a schedule.
 No approval needed; a local dashboard lets you watch upcoming posts and veto them.
 
 ## How a post is made
@@ -11,22 +11,35 @@ No approval needed; a local dashboard lets you watch upcoming posts and veto the
    (`src/agents/playbook.ts`: goals, plays, how X distributes posts), the last 30 posts with the engagement X reported,
    the ideas the owner discarded, and the goal/format/pillar mix. It returns a brief: goal (`reach`, `engagement`,
    `conversion`), play (hot take, relatable pain, story, how-to, teardown, list, question, product moment, offer...),
-   the reader insight, angle, media kind (`none`, `design`, `kinetic`, `clip`) and, for images, the visual concept
-   (what it shows, the words on it, the aspect).
+   the reader insight, angle, media kind (`none`, `design`, `video`) and, for images and videos, the visual concept
+   (what it shows or the story beat by beat, the words on it, the aspect).
 2. **Dedupe** rejects ideas already posted (trigram similarity + a haiku check) and re-plans.
-3. **Copywriter** (opus) writes 3-4 versions with different hooks, keeps the strongest (all are saved in
-   `copy.json`), and the words of a video.
+3. **Copywriter** (opus) writes 3-4 versions of the tweet with different hooks and keeps the strongest (all are
+   saved in `copy.json`).
 4. **Media**: for images the **designer** (opus, `src/agents/designer.ts`) writes an HTML/CSS/SVG page from the
    concept, following the product's design manual (`brand.guidelines`) and a screenshot of its website. It renders
    it with a tool that returns the screenshot plus layout problems (text clipped, off the canvas, too small,
-   overlapping, missing fonts), fixes what it sees, and picks the render to publish (up to 6 renders). Videos are
-   Remotion kinetic typography or real product clips with a title card and end card.
+   overlapping, missing fonts), fixes what it sees, and picks the render to publish (up to 6 renders). It can also
+   generate up to 2 photos or illustrations on ElevenLabs and place them in the page.
+   For videos the **editor** (opus, `src/agents/editor.ts`) works the same way: it generates the raw material it
+   needs on ElevenLabs (footage with Veo 3.1 Fast, pictures, a music bed), adds the product's own clips and
+   screenshots if it wants, and writes a timeline (`src/media/edit.ts`) of animated HTML/CSS scenes in the brand's
+   style, video layers and audio layers. A `preview` tool returns stills across it plus the layout problems of each
+   scene; it fixes and previews again (up to 6), then Remotion renders the chosen timeline (`remotion/src/Edit.tsx`,
+   CSS animations frozen to each frame so renders are exact).
 5. **Hard checks**: only what X itself would refuse (≤280 weighted chars, media size/duration/codec).
    A tweet that is too long is rewritten up to 2 times. There is no LLM review.
 6. **Publisher**: guards (pause, daily caps, min gap, duplicates, X connected), then the post goes out through the product's logged-in browser profile. There is no dry-run and no X API.
 
 LLM calls run through the Claude Agent SDK on your Claude Code subscription (`src/llm.ts`), with your own
 settings, hooks, plugins and MCP servers disabled for those calls.
+
+Images, video and music are generated on **ElevenLabs** through its MCP server (`src/media/elevenlabs.ts`), using
+the OAuth login of the user-scope `elevenlabs` MCP in Claude Code (no API key in `.env`). Log in once from Claude
+Code (`/mcp`, elevenlabs, authenticate); if the login expires, generations fail with that error until you log in
+again. A small agent runs a fixed recipe while the code pins model and parameters and allows one charged generation
+per job. Rough cost on the Creator plan: an image ~190 credits, a music track a few hundred, a Veo clip ~7k+.
+Per post the designer may make 2 images; the editor 4 images, 2 clips and 1 music track.
 
 ## Quick start
 

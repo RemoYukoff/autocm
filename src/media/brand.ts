@@ -1,10 +1,9 @@
-// Brand tokens for renderers (designs and Remotion), resolved from product.yaml + products/<slug>/assets.
+// Brand files for designs and video edits: fonts and logos, resolved from product.yaml + products/<slug>/assets.
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { productPath } from "../core/config.ts";
 import type { Product } from "../core/types.ts";
-import { hostOf } from "./copy.ts";
 
 export type Theme = "dark" | "light";
 
@@ -14,24 +13,6 @@ export interface FontFile {
   file: string;
   weight: string;
   style: "normal" | "italic";
-}
-
-export interface Brand {
-  name: string;
-  url: string;
-  host: string;
-  theme: Theme;
-  /** hl and primary always contrast with bg; onHl is the text color on an hl-filled block. */
-  colors: { bg: string; fg: string; muted: string; hl: string; onHl: string; primary: string; accent: string; ink: string; paper: string };
-  sansStack: string;
-  monoStack: string;
-  /** Font files to register (product fonts first, bundled Geist fallback last). */
-  fonts: FontFile[];
-  /** Product-provided fonts.css (absolute path), imported by designs in addition to generated @font-face rules. */
-  fontsCss: string | null;
-  /** data: URI of the logo, recolored for the theme when it is an SVG with a dark-scheme block. */
-  logo: string | null;
-  notes: string[];
 }
 
 const require = createRequire(import.meta.url);
@@ -87,13 +68,6 @@ export function logoFile(product: Product, theme: Theme): { body: Buffer; ext: s
   return { body: fs.readFileSync(file), ext };
 }
 
-function logoDataUri(product: Product, theme: Theme): string | null {
-  const logo = logoFile(product, theme);
-  if (!logo) return null;
-  const mime = logo.ext === ".svg" ? "image/svg+xml" : logo.ext === ".png" ? "image/png" : logo.ext === ".webp" ? "image/webp" : "image/jpeg";
-  return `data:${mime};base64,${logo.body.toString("base64")}`;
-}
-
 /** Product font files (product.yaml first, the bundled Geist fallback last) and the product's fonts.css, if any. */
 export function resolveFonts(product: Product): { fonts: FontFile[]; fontsCss: string | null; notes: string[] } {
   const { sans, mono, files } = product.config.brand.fonts;
@@ -109,54 +83,6 @@ export function resolveFonts(product: Product): { fonts: FontFile[]; fontsCss: s
   }
   fonts.push(...bundledFallbackFonts());
   return { fonts, fontsCss, notes };
-}
-
-export function resolveBrand(product: Product, theme: Theme = "dark"): Brand {
-  const c = product.config;
-  const col = c.brand.colors;
-  const muted = col.muted ?? "#71717A";
-  const bg = theme === "dark" ? col.ink : col.bg;
-  const fg = theme === "dark" ? col.bg : col.ink;
-  // A monochrome site gives accent == primary == ink, which vanishes on a dark background: brand colors that do
-  // not stand out from the background give way to the foreground.
-  const pop = (c: string) => (contrast(c, bg) >= 2.5 ? c : fg);
-  const hl = pop(theme === "dark" ? col.accent : col.primary);
-  const colors = { bg, fg, muted, hl, onHl: contrast(bg, hl) >= contrast(fg, hl) ? bg : fg, primary: pop(col.primary), accent: pop(col.accent), ink: col.ink, paper: col.bg };
-
-  const { fonts, fontsCss, notes } = resolveFonts(product);
-  const logo = logoDataUri(product, theme);
-  if (!logo) notes.push(`logo missing: ${c.brand.logo}`);
-
-  return {
-    name: c.name,
-    url: c.url,
-    host: hostOf(c.url),
-    theme,
-    colors,
-    sansStack: `"${c.brand.fonts.sans}", "autocm-sans", ui-sans-serif, system-ui, sans-serif`,
-    monoStack: `${c.brand.fonts.mono ? `"${c.brand.fonts.mono}", ` : ""}"autocm-mono", ui-monospace, monospace`,
-    fonts,
-    fontsCss,
-    logo,
-    notes,
-  };
-}
-
-function luminance(hex: string): number {
-  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return 0.5;
-  const h = m[1]!.length === 3 ? [...m[1]!].map((c) => c + c).join("") : m[1]!;
-  const [r, g, b] = [0, 2, 4].map((i) => {
-    const c = parseInt(h.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
-}
-
-/** WCAG contrast ratio between two hex colors (1..21). */
-export function contrast(a: string, b: string): number {
-  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
-  return (x! + 0.05) / (y! + 0.05);
 }
 
 export function fontFaceCss(fonts: FontFile[], urlFor: (f: FontFile, i: number) => string): string {

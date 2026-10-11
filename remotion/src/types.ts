@@ -1,55 +1,49 @@
-// Props contract between src/media/video.ts (Node) and the compositions. Plain JSON, no zod:
+// Props contract between src/media/edit.ts (Node) and the Edit composition. Plain JSON, no zod:
 // the root project is on zod 4 and Remotion's schema integration targets zod 3.
+//
+// Strings may reference staged files as `asset:<name>` (html, css, src); the composition resolves them with staticFile.
 
-export type Word = { text: string; hl: boolean };
+export type Box = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  radius?: number;
+};
 
-export type FontSpec = {
-  family: string;
-  /** Path under the bundle's public dir (resolved with staticFile). */
+/** An HTML/CSS scene. CSS animations are seeked to the frame; `--t` (s) and `--p` (0..1) hold the layer's local time. */
+export type HtmlLayer = { kind: "html"; start: number; duration: number; html: string };
+
+/** A video file in a box. Opacity fades at the edges; its own sound plays at `volume`. */
+export type VideoLayer = {
+  kind: "video";
+  start: number;
+  duration: number;
   src: string;
-  weight: string;
-  style: "normal" | "italic";
+  /** Seconds skipped at the start of the file. */
+  trim: number;
+  box: Box;
+  fit: "cover" | "contain";
+  volume: number;
+  fadeIn: number;
+  fadeOut: number;
+  /** Scale at the start and at the end of the layer (slow push-in/out). */
+  zoom: [number, number];
 };
 
-export type BrandProps = {
-  name: string;
-  host: string;
-  /** data: URI, already recolored for the theme. */
-  logo: string | null;
-  colors: { bg: string; fg: string; muted: string; hl: string; primary: string; accent: string };
-  sans: string;
-  mono: string;
-  fonts: FontSpec[];
-};
+export type AudioLayer = { kind: "audio"; start: number; duration: number; src: string; trim: number; volume: number; fadeIn: number; fadeOut: number };
 
-export type Beat = { words: Word[]; start: number; dur: number };
+export type Layer = HtmlLayer | VideoLayer | AudioLayer;
 
-export type KineticProps = {
+export type EditProps = {
   width: number;
   height: number;
   fps: number;
-  brand: BrandProps;
-  beats: Beat[];
-  outro: { start: number; dur: number };
   total: number;
-};
-
-export type ClipCaptionProps = {
-  width: number;
-  height: number;
-  fps: number;
-  brand: BrandProps;
-  clip: {
-    /** Path under the bundle's public dir. */
-    src: string;
-    /** Seconds trimmed from the start of the source. */
-    trimBefore: number;
-    /** Seconds of source to play. */
-    duration: number;
-  };
-  headline: Word[];
-  /** Seconds of title card (headline) before the clip plays unobstructed. */
-  intro: number;
-  endCard: number;
-  total: number;
+  /** Staged files by name -> path under the bundle's public dir. */
+  assets: Record<string, string>;
+  /** Brand stylesheet (font faces, variables) followed by the editor's own CSS. */
+  css: string;
+  /** Bottom to top. */
+  layers: Layer[];
 };

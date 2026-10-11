@@ -16,8 +16,6 @@ export const Clip = z.object({
   id: z.string(),
   path: z.string().describe("Relative to products/<slug>/"),
   description: z.string(),
-  start: z.number().nonnegative().optional(),
-  end: z.number().positive().optional(),
 });
 export type Clip = z.infer<typeof Clip>;
 
@@ -118,26 +116,22 @@ export interface XProfile {
   avatar_url: string | null;
 }
 
-// ---------- Capabilities ----------
+// ---------- Formats ----------
 
 export const Format = z.enum(["text", "image", "video"]);
 export type Format = z.infer<typeof Format>;
 
-/** none: text only. design: image designed from scratch by the designer agent. kinetic: kinetic-typography video. clip: product clip with a caption. */
-export const MediaKind = z.enum(["none", "design", "kinetic", "clip"]);
+/**
+ * none: text only. design: an image the designer agent builds from scratch. video: a video the editor agent cuts
+ * from animated brand scenes, ElevenLabs footage/pictures/music and product clips.
+ */
+export const MediaKind = z.enum(["none", "design", "video"]);
 export type MediaKind = z.infer<typeof MediaKind>;
-
-export interface Capabilities {
-  clip: boolean;
-  /** The product has a connected X session, so it can publish. */
-  live: boolean;
-}
 
 export const KIND_FORMAT: Record<MediaKind, Format> = {
   none: "text",
   design: "image",
-  kinetic: "video",
-  clip: "video",
+  video: "video",
 };
 
 // ---------- Stage contracts ----------
@@ -164,10 +158,10 @@ export type Play = z.infer<typeof Play>;
 export const ImageAspect = z.enum(["landscape", "square", "portrait"]);
 export type ImageAspect = z.infer<typeof ImageAspect>;
 
-/** The marketer's creative brief for the designer: what the image shows and says, not how it is laid out. */
+/** The marketer's creative brief for the designer (image) or the editor (video): what it shows and says, not how. */
 export const Visual = z.object({
-  concept: z.string().describe("What the image shows and why it stops the scroll: the joke, the contrast, the scene. Concrete, not a mood board"),
-  words: z.string().describe("The words that must appear on the image (headline, labels, chat lines...), as few as possible"),
+  concept: z.string().describe("Image: what it shows and why it stops the scroll (the joke, the contrast, the scene). Video: the story beat by beat. Concrete, not a mood board"),
+  words: z.string().describe("The words that must appear on it, as few as possible"),
   aspect: ImageAspect.describe("landscape 16:9, square 1:1 or portrait 4:5 (portrait and square take more of a phone screen)"),
 });
 export type Visual = z.infer<typeof Visual>;
@@ -181,24 +175,14 @@ export const Brief = z.object({
   hook_idea: z.string().describe("How the first line grabs attention"),
   format: Format,
   media_kind: MediaKind,
-  visual: Visual.optional().describe("Required when media_kind is design"),
-  clip_id: z.string().optional().describe("Required when media_kind is clip"),
+  visual: Visual.optional().describe("Required when media_kind is design or video"),
   include_link: z.boolean(),
   rationale: z.string().describe("Why this goal, play, angle and format now"),
 });
 export type Brief = z.infer<typeof Brief>;
 
-/** Words of a video: the opening line and the beats that follow (kinetic), or the title card (clip). */
-export const VideoCopy = z.object({
-  headline: z.string().describe("Opening beat or title card; may wrap *words* to highlight"),
-  beats: z.array(z.string()).default([]).describe("Kinetic video: 3-5 following beats. Clip: empty"),
-  highlight_words: z.array(z.string()).default([]),
-});
-export type VideoCopy = z.infer<typeof VideoCopy>;
-
 export const Draft = z.object({
   text: z.string().describe("Tweet text, <=280 weighted chars"),
-  video: VideoCopy.optional().describe("Only for kinetic and clip posts"),
 });
 export type Draft = z.infer<typeof Draft>;
 
@@ -217,10 +201,8 @@ export const MediaResult = z.object({
   files: z.array(MediaFile),
   /** PNG previews (dashboard): the image itself, or ~5 video frames. */
   preview_frames: z.array(z.string()).default([]),
-  /** Image description for screen readers (designed images). */
+  /** Description for screen readers (designed images and videos). */
   alt_text: z.string().optional(),
-  /** Set when the requested kind failed and a fallback kind was used. */
-  fallback_from: MediaKind.optional(),
   notes: z.array(z.string()).default([]),
 });
 export type MediaResult = z.infer<typeof MediaResult>;

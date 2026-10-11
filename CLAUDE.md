@@ -3,7 +3,11 @@
 Autonomous X (Twitter) community manager. For each product in `products/<slug>/` it decides what to post
 (text, image or video), generates it and publishes it on a schedule, with no human approval (a local dashboard allows vetoing).
 Post making: marketer (`src/agents/marketer.ts` + `playbook.ts`) -> dedupe -> copywriter -> designer agent for images
-(`src/agents/designer.ts`, HTML/CSS it renders and checks itself via `src/media/design.ts`) or Remotion for video.
+(`src/agents/designer.ts`, HTML/CSS it renders and checks itself via `src/media/design.ts`) or the editor agent for
+video (`src/agents/editor.ts`: a timeline of HTML/CSS scenes, footage and audio, `src/media/edit.ts`, rendered by the
+one Remotion composition `remotion/src/Edit.tsx`). There are no image or video templates.
+Generated pictures, footage and music come from ElevenLabs via its MCP (`src/media/elevenlabs.ts`, OAuth login of Claude Code's
+user-scope `elevenlabs` server). Every generation spends the user's ElevenLabs credits: never loop or retry one.
 The marketer learns from engagement read back from X (`src/publish/metrics.ts`) and from posts discarded in the dashboard.
 
 ## Rules

@@ -1,9 +1,8 @@
-// Copywriter: turns a Brief into the tweet. Writes several versions with different hooks, picks the strongest, and
-// for videos writes the words on screen. The designer writes the words of an image from the marketer's concept.
+// Copywriter: turns a Brief into the tweet. Writes several versions with different hooks and picks the strongest.
+// The words inside an image or a video are the designer's and editor's, from the marketer's concept.
 import twitterText from "twitter-text";
 import { z } from "zod";
 import type { Brief, Draft, PostRow, Product } from "../core/types.ts";
-import { VideoCopy } from "../core/types.ts";
 import { callJson } from "../llm.ts";
 import { historyContext, productContext } from "./context.ts";
 import { COPY_RULES, GOAL_GUIDE, HOOKS, PLAY_GUIDE } from "./playbook.ts";
@@ -28,11 +27,6 @@ export interface Written {
   why: string;
 }
 
-const VIDEO_GUIDE: Record<string, string> = {
-  kinetic: "headline: the opening beat (max ~8 words). beats: 3-5 following beats, each max ~8 words, telling a mini story: problem -> turn -> payoff. The last beat can be the product url.",
-  clip: "headline: title card shown for ~2 s before the clip plays (max ~8 words). The clip already shows its own on-screen headline (see the clip description): never repeat it; add context the clip does not say (who it is for, why it matters). beats: leave empty.",
-};
-
 const Variant = z.object({
   hook: z.string().describe("The hook technique this version uses"),
   text: z.string().describe("The full tweet"),
@@ -41,12 +35,10 @@ const Variant = z.object({
 export async function writeDraft(input: CopywriterInput): Promise<Written> {
   const { product, brief, feedback = [], previous } = input;
   const c = product.config;
-  const video = brief.media_kind === "kinetic" || brief.media_kind === "clip";
   const schema = z.object({
     variants: z.array(Variant).min(3).max(4).describe("3-4 genuinely different versions, each with a different hook technique"),
     chosen: z.number().int().describe("0-based index of the version most likely to stop the scroll and get replies or bookmarks"),
     why: z.string().describe("One sentence: why that version wins"),
-    ...(video ? { video: VideoCopy } : {}),
   });
 
   const prompt = `You are the copywriter of ${c.name}'s X (Twitter) account. The head of marketing decided the next post;
@@ -64,7 +56,7 @@ Pillar: ${brief.pillar}
 Reader insight: ${brief.insight}
 Angle: ${brief.angle}
 Hook idea: ${brief.hook_idea}
-${brief.visual ? `The post carries an image the designer makes from this concept: ${brief.visual.concept}\nWords on the image: ${brief.visual.words}\nThe tweet must work with the image, not describe or repeat it.` : ""}${video ? `The post carries a ${brief.media_kind} video.` : ""}
+${brief.visual ? `The post carries ${brief.media_kind === "design" ? "an image the designer makes" : "a video the motion designer makes"} from this concept: ${brief.visual.concept}\nWords on it: ${brief.visual.words}\nThe tweet must work with it, not describe or repeat it.` : ""}
 
 # How to write
 ${COPY_RULES.map((r) => `- ${r}`).join("\n")}
@@ -79,13 +71,12 @@ ${HOOKS.map((h) => `- ${h}`).join("\n")}
   Scenes from the reader's job may be illustrative (a made-up ticket or bug) as long as they claim nothing about the product.
 - Example posts show the voice; never copy their lines. Write fresh hooks.
 - ${brief.include_link ? `Include the placeholder ${LINK_PLACEHOLDER} exactly once where the link goes (it becomes ${c.links.cta_url}).` : "Do not include any URL or link."}
-${video ? `\n# Words in the video (video)\n${VIDEO_GUIDE[brief.media_kind]}\nWrap 1-2 key words in *asterisks* to highlight them and list them in highlight_words.` : ""}
 ${previous ? `\n# Previous version (rejected)\n${JSON.stringify(previous, null, 2)}` : ""}
 ${feedback.length ? `\n# Fix these issues in every version\n${feedback.map((f) => `- ${f}`).join("\n")}` : ""}`;
 
-  const out = (await callJson(schema, prompt, { stage: "copywriter", model: "opus", postId: input.postId })) as z.infer<typeof schema> & { video?: VideoCopy };
+  const out = await callJson(schema, prompt, { stage: "copywriter", model: "opus", postId: input.postId });
   const chosen = Math.min(Math.max(0, out.chosen), out.variants.length - 1);
-  const draft: Draft = { text: out.variants[chosen]!.text, ...(video && out.video ? { video: out.video } : {}) };
+  const draft: Draft = { text: out.variants[chosen]!.text };
   return { draft: finalizeDraft(draft, brief, product), variants: out.variants, chosen, why: out.why };
 }
 

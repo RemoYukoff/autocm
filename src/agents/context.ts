@@ -1,6 +1,6 @@
 // Builds the shared context the agents see: product brief, voice, knowledge, posting history, results and vetoes.
 import type { Discarded } from "../core/db/index.ts";
-import type { Capabilities, Format, Goal, MediaKind, Play, PostRow, Product } from "../core/types.ts";
+import type { Format, Goal, Play, PostRow, Product } from "../core/types.ts";
 import { GOAL_TARGET } from "./playbook.ts";
 
 const DAY_MS = 86_400_000;
@@ -27,10 +27,10 @@ ${c.voice.example_posts.map((p) => `> ${p}`).join("\n")}
 ## Content pillars
 ${c.pillars.map((p) => `- ${p.id} (weight ${p.weight}): ${p.description}`).join("\n")}
 
-## Video clips available (for media_kind "clip")
+## Product clips (the motion designer can cut them into a video)
 ${clips}
 
-## Product screenshots (the designer can place them in an image)
+## Product screenshots (the designer and motion designer can place them)
 ${screens}
 
 ## Knowledge base (source of truth; never claim anything not supported here)
@@ -124,11 +124,6 @@ export function resultsContext(history: PostRow[]): string {
 export function vetoContext(vetoes: Discarded[]): string {
   if (!vetoes.length) return "(none)";
   return vetoes.map((v) => `- [${v.goal}/${v.play}] [${v.format}] angle="${v.angle}" text="${(v.text ?? "").replace(/\s+/g, " ").slice(0, 160)}"`).join("\n");
-}
-
-/** Media kinds that can actually be produced right now. */
-export function availableKinds(caps: Capabilities): MediaKind[] {
-  return caps.clip ? ["none", "design", "kinetic", "clip"] : ["none", "design", "kinetic"];
 }
 
 export function statsContext(product: Product, stats: HistoryStats): string {

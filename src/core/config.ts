@@ -3,7 +3,7 @@ import path from "node:path";
 import YAML from "yaml";
 import { getXAccount } from "./db/index.ts";
 import { PRODUCTS_DIR, sessionDir } from "./paths.ts";
-import { ProductConfig, type Capabilities, type Product, type XAccount } from "./types.ts";
+import { ProductConfig, type Product, type XAccount } from "./types.ts";
 
 export function listProductSlugs(): string[] {
   if (!fs.existsSync(PRODUCTS_DIR)) return [];
@@ -64,11 +64,4 @@ export function validateProductFiles(product: Product): string[] {
   c.assets.screens.forEach((s) => must(s.path, `screen ${s.id}`));
   if (!product.knowledge) problems.push("knowledge/ has no .md files");
   return problems;
-}
-
-export function capabilitiesFor(product: Product): Capabilities {
-  return {
-    clip: product.config.assets.clips.length > 0,
-    live: product.xAccount !== null,
-  };
 }

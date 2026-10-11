@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 import { Command } from "commander";
-import { capabilitiesFor, listProductSlugs, loadProduct, validateProductFiles } from "./core/config.ts";
+import { listProductSlugs, loadProduct, validateProductFiles } from "./core/config.ts";
 import { getDb } from "./core/db/index.ts";
 import { log } from "./core/log.ts";
 import { renderFixture } from "./media/index.ts";
@@ -24,8 +24,7 @@ const products = program.command("products").description("Manage products");
 products.command("list").action(() => {
   for (const slug of listProductSlugs()) {
     const p = loadProduct(slug);
-    const caps = capabilitiesFor(p);
-    console.log(`${slug}\tenabled=${p.config.enabled}\tx=${p.xAccount ? `@${p.xAccount.handle}` : "not connected"}\tcaps=${JSON.stringify(caps)}`);
+    console.log(`${slug}\tenabled=${p.config.enabled}\tx=${p.xAccount ? `@${p.xAccount.handle}` : "not connected"}`);
   }
 });
 products.command("validate [slug]").description("Validate product.yaml and referenced files").action((slug?: string) => {

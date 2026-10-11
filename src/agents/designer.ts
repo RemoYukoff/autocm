@@ -12,9 +12,12 @@ import type { Brief, MediaFile, MediaResult, Product, Visual } from "../core/typ
 import { callJson, toolImage, toolText } from "../llm.ts";
 import { launchBrowser } from "../media/browser.ts";
 import { designKit, IMAGE_SIZES, minFontPx, renderDesign } from "../media/design.ts";
+import { generationTools, IMAGE_MODELS, type AssetBag } from "./assets.ts";
 
 /** Renders the designer may ask for; the last ones are for polish, so a few is plenty. */
 const MAX_RENDERS = 6;
+/** ElevenLabs pictures per design session (each costs credits and about a minute). */
+const MAX_IMAGES = 2;
 
 export interface DesignInput {
   product: Product;
@@ -103,6 +106,16 @@ ${product.knowledge}
 - Avoid the generic AI look: no random glowing blobs, no purple gradient soup, no centered title with a subtitle
   and nothing else, no emoji, no clip-art icons.
 
+# Generated images (ElevenLabs)
+You can call generate_image (up to ${MAX_IMAGES} times, about a minute each) for a photo, an illustration, an object or a
+texture that HTML/CSS/SVG can't draw well, then place it in your page like any image. You see the result before
+using it. Use it when a real picture makes the concept land (a scene, a physical object, a mood); skip it when type,
+shapes and a drawn artifact carry the idea, which is often. Your HTML still owns all brand text, the logo and the layout.
+Reference a generated picture as <img src="asset:gen-1.png"> (the name the tool returns).
+Prompts for it: describe the picture concretely (subject, framing, light, background, palette in the brand's colors),
+leave calm space where your text will sit, and never ask for real brands, logos, product UIs, celebrities or
+readable text (unless you chose the text model on purpose for that). Models: ${Object.entries(IMAGE_MODELS).map(([m, d]) => `${m} (${d})`).join("; ")}.
+
 # How to work
 1. Write the full HTML page (inline <style>; inline SVG for any illustration). The page body is the canvas, fixed at
    ${w}x${h}; only the URLs above load (no web fonts, no external images, no scripts needed).
@@ -137,6 +150,7 @@ async function designOnce(input: DesignInput, work: string): Promise<DesignOutpu
 
   let browser: Browser | null = null;
   const renders: { file: MediaFile; problems: string[]; html: string }[] = [];
+  const bag: AssetBag = { dir: work, files: {}, postId: input.postId };
   const render = tool(
     "render",
     `Render a full HTML page at the canvas size and return the screenshot plus layout problems. Up to ${MAX_RENDERS} calls.`,
@@ -148,7 +162,7 @@ async function designOnce(input: DesignInput, work: string): Promise<DesignOutpu
       fs.writeFileSync(`${base}.html`, html);
       try {
         browser ??= await launchBrowser();
-        const out = await renderDesign(html, product, aspect, `${base}.png`, browser);
+        const out = await renderDesign(html, product, aspect, `${base}.png`, { browser, assets: bag.files });
         renders.push({ ...out, html });
         const report = out.problems.length ? `Problems found:\n${out.problems.map((p) => `- ${p}`).join("\n")}` : "No layout problems found.";
         return toolImage(out.file.path, `Render #${n} (${out.file.width}x${out.file.height}). ${report}\n${MAX_RENDERS - n} render(s) left.`);
@@ -164,9 +178,9 @@ async function designOnce(input: DesignInput, work: string): Promise<DesignOutpu
       model: "opus",
       postId: input.postId,
       images,
-      tools: [render],
-      maxTurns: MAX_RENDERS * 2 + 4,
-      timeoutMs: 20 * 60_000,
+      tools: [render, ...generationTools(bag, { images: MAX_IMAGES, clips: 0, music: 0 })],
+      maxTurns: (MAX_RENDERS + MAX_IMAGES) * 2 + 4,
+      timeoutMs: 30 * 60_000,
       attempts: 1,
       system:
         "You are a senior brand designer working inside an automated content pipeline. You design with HTML, CSS and SVG, " +
@@ -177,11 +191,12 @@ async function designOnce(input: DesignInput, work: string): Promise<DesignOutpu
     const file = path.join(outDir, "image.png");
     fs.copyFileSync(pick.file.path, file);
     fs.writeFileSync(path.join(outDir, "design.html"), pick.html);
+    for (const [name, src] of Object.entries(bag.files)) if (pick.html.includes(`asset:${name}`)) fs.copyFileSync(src, path.join(outDir, name));
     const chosen = renders.indexOf(pick) + 1;
     return {
       file: { ...pick.file, path: path.resolve(file) },
       alt_text: answer.alt_text.slice(0, 1000),
-      notes: [`design: ${renders.length} render(s), published #${chosen} at ${pick.file.width}x${pick.file.height}`, ...pick.problems.map((p) => `design problem left: ${p}`)],
+      notes: [`design: ${renders.length} render(s), ${Object.keys(bag.files).length} ElevenLabs image(s), published #${chosen} at ${pick.file.width}x${pick.file.height}`, ...pick.problems.map((p) => `design problem left: ${p}`)],
     };
   } finally {
     await (browser as Browser | null)?.close();
