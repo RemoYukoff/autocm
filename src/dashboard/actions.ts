@@ -1,11 +1,13 @@
-// Write side of the dashboard: veto, add a slot, move a slot, pause/resume. Writing and publishing belong to the
+// Write side of the dashboard: discard, add a slot, move a slot, pause/resume. Writing and publishing belong to the
 // scheduler alone: "Generate" only adds a slot and asks the scheduler for a pass now.
-// A veto is a conditional UPDATE (WHERE status = 'approved') so it can never stomp on the scheduler's tick,
-// and a double click finds the post already rejected and is refused.
+// Discard deletes the post outright with a conditional DELETE (WHERE status = 'approved'), so it can never stomp on
+// the scheduler's tick, and a double click finds the post gone and is refused.
+import fs from "node:fs";
 import { loadProduct } from "../core/config.ts";
-import { getDb, getPost, logEvent, nowIso } from "../core/db/index.ts";
+import { getDb, getPost, logEvent } from "../core/db/index.ts";
 import { track } from "../core/inflight.ts";
 import { log } from "../core/log.ts";
+import { postOutDir } from "../core/paths.ts";
 import type { PostRow } from "../core/types.ts";
 import { isPaused, pause, resume } from "../safety/pause.ts";
 import { zonedToUtc } from "../safety/time.ts";
@@ -13,8 +15,6 @@ import { tick, type SlotRow } from "../scheduler/index.ts";
 import { addSlot } from "../scheduler/plan.ts";
 import { currentTick } from "../scheduler/tick.ts";
 import { getSlot, slotOfPost } from "./queries.ts";
-
-export const VETO_ERROR = "vetoed in dashboard";
 
 export class ActionError extends Error {
   readonly status: 400 | 404 | 409;
@@ -35,16 +35,6 @@ function slotEvent(type: string, slot: SlotRow, payload: Record<string, unknown>
   });
 }
 
-/** approved -> rejected, atomically. False when the post is no longer approved (e.g. the tick is publishing it). */
-function vetoPost(post: PostRow, slotId: number | null): boolean {
-  const r = getDb()
-    .prepare("UPDATE posts SET status = 'rejected', error = ?, updated_at = ? WHERE id = ? AND status = 'approved'")
-    .run(VETO_ERROR, nowIso(), post.id);
-  if (Number(r.changes) !== 1) return false;
-  logEvent("post_vetoed", { product: post.product, post_id: post.id, payload: { source: "dashboard", slot_id: slotId } });
-  return true;
-}
-
 function requirePost(id: number): PostRow {
   const post = getPost(id);
   if (!post) throw new ActionError(404, `post #${id} not found`);
@@ -58,16 +48,16 @@ function notApproved(post: PostRow, verb: string): ActionError {
 
 // ---------- actions ----------
 
-/** Veto an approved post. Its slot (if any) is marked skipped so the scheduler publishes nothing there. */
-export function discardPost(postId: number): { post: PostRow; slot: SlotRow | null } {
+/** Delete an approved post with its slot and its files: a discarded post no longer exists anywhere. */
+export function discardPost(postId: number): void {
   const post = requirePost(postId);
   const slot = slotOfPost(postId);
-  if (!vetoPost(post, slot?.id ?? null)) throw notApproved(post, "discarded");
-  if (slot) {
-    const r = getDb().prepare("UPDATE slots SET status = 'skipped' WHERE id = ? AND post_id = ? AND status IN ('generated','pending')").run(slot.id, postId);
-    if (Number(r.changes) === 1) slotEvent("slot_skipped", slot, { reason: VETO_ERROR }, postId);
-  }
-  return { post: getPost(postId)!, slot: slot ? (getSlot(slot.id) ?? null) : null };
+  const db = getDb();
+  // Only while approved: once the tick has started publishing it, it is no longer ours to delete.
+  if (Number(db.prepare("DELETE FROM posts WHERE id = ? AND status = 'approved'").run(postId).changes) !== 1) throw notApproved(post, "discarded");
+  if (slot) db.prepare("DELETE FROM slots WHERE id = ? AND post_id = ?").run(slot.id, postId);
+  fs.rmSync(postOutDir(post.product, post.id, new Date(post.created_at)), { recursive: true, force: true });
+  logEvent("post_discarded", { product: post.product, post_id: post.id, payload: { source: "dashboard", slot_id: slot?.id ?? null, scheduled_at: slot?.scheduled_at ?? null } });
 }
 
 /** A scheduler pass right after the one in flight (if any), so a new slot is written without waiting for the next one. */

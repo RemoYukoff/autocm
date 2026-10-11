@@ -208,7 +208,6 @@ export const PostStatus = z.enum([
   "approved",
   "publishing",
   "published",
-  "rejected",
   "failed",
 ]);
 export type PostStatus = z.infer<typeof PostStatus>;

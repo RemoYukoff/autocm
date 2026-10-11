@@ -6,6 +6,7 @@ import { OUT_DIR } from "../core/paths.ts";
 import type { MediaResult, PostRow, PostStatus, Product, XAccount } from "../core/types.ts";
 import type { SlotRow } from "../scheduler/index.ts";
 import { isPaused } from "../safety/pause.ts";
+import { localDate, zonedToUtc } from "../safety/time.ts";
 import { avatarFile } from "./accounts.ts";
 
 
@@ -26,6 +27,10 @@ export interface PostView {
   text: string | null;
   alt_text: string | null;
   media: MediaView[];
+  /** Link to the tweet once published. */
+  url: string | null;
+  published_at: string | null;
+  error: string | null;
 }
 
 export interface SlotView {
@@ -99,7 +104,7 @@ export function postView(p: PostRow): PostView {
       poster: f.mime.startsWith("video/") ? poster : undefined,
     });
   }
-  return { id: p.id, product: p.product, slot_id: p.slot_id, status: p.status, text: p.text, alt_text: p.alt_text, media: files };
+  return { id: p.id, product: p.product, slot_id: p.slot_id, status: p.status, text: p.text, alt_text: p.alt_text, media: files, url: p.url, published_at: p.published_at, error: p.error };
 }
 
 export function getSlot(id: number): SlotRow | undefined {
@@ -111,28 +116,75 @@ export function slotOfPost(postId: number): SlotRow | undefined {
   return getDb().prepare("SELECT * FROM slots WHERE post_id = ? ORDER BY id DESC LIMIT 1").get(postId) as SlotRow | undefined;
 }
 
-/** The post a slot shows: its linked post, or the newest post generated for it (e.g. while generating). */
+/** The post a slot shows: its linked post, or the newest post generated for it (while generating, or one that failed). */
 function slotPost(slot: SlotRow): PostRow | undefined {
   const db = getDb();
   if (slot.post_id) return db.prepare("SELECT * FROM posts WHERE id = ?").get(slot.post_id) as PostRow | undefined;
-  if (slot.status === "claimed") {
+  if (slot.status !== "pending") {
     return db.prepare("SELECT * FROM posts WHERE slot_id = ? ORDER BY id DESC LIMIT 1").get(slot.id) as PostRow | undefined;
   }
   return undefined;
 }
 
-/**
- * What the bot is about to publish: every slot the scheduler still acts on (pending / claimed / generated, even if
- * a guard is holding it past its time). Vetoed, failed and published slots drop out.
- */
-export function upcomingSlots(limit = 60, product?: string): SlotView[] {
+function slotView(s: SlotRow): SlotView {
+  const p = slotPost(s);
+  return { id: s.id, product: s.product, scheduled_at: s.scheduled_at, status: s.status, claimed_at: s.claimed_at, post: p ? postView(p) : null };
+}
+
+export const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export interface DayView {
+  /** YYYY-MM-DD in the account's timezone. */
+  date: string;
+  published: number;
+  /** Slots of that day the bot will still act on. */
+  upcoming: number;
+  /** Skipped (missed, account disabled) or failed. */
+  dropped: number;
+}
+
+/** YYYY-MM-DD of `date` in `tz`. */
+export function localYmd(date: Date, tz: string): string {
+  const d = localDate(date, tz);
+  return `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+}
+
+const UPCOMING = new Set<SlotRow["status"]>(["pending", "claimed", "generated"]);
+
+/** Every local day that has a slot, newest first, with what happened on it. Feeds the day strip and the calendar. */
+export function postDays(product: string, tz: string): DayView[] {
   const rows = getDb()
-    .prepare("SELECT * FROM slots WHERE status IN ('pending','claimed','generated') AND (? IS NULL OR product = ?) ORDER BY scheduled_at LIMIT ?")
-    .all(product ?? null, product ?? null, limit) as unknown as SlotRow[];
-  return rows.map((s) => {
-    const p = slotPost(s);
-    return { id: s.id, product: s.product, scheduled_at: s.scheduled_at, status: s.status, claimed_at: s.claimed_at, post: p ? postView(p) : null };
-  });
+    .prepare("SELECT scheduled_at, status FROM slots WHERE product = ? ORDER BY scheduled_at DESC")
+    .all(product) as { scheduled_at: string; status: SlotRow["status"] }[];
+  const days = new Map<string, DayView>();
+  for (const r of rows) {
+    const date = localYmd(new Date(r.scheduled_at), tz);
+    let day = days.get(date);
+    if (!day) days.set(date, (day = { date, published: 0, upcoming: 0, dropped: 0 }));
+    if (r.status === "done") day.published++;
+    else if (UPCOMING.has(r.status)) day.upcoming++;
+    else day.dropped++;
+  }
+  return [...days.values()];
+}
+
+/** Posts being written right now (any day). */
+export function writingCount(product?: string): number {
+  const r = getDb().prepare("SELECT COUNT(*) AS n FROM slots WHERE status = 'claimed' AND (? IS NULL OR product = ?)").get(product ?? null, product ?? null) as { n: number };
+  return Number(r.n);
+}
+
+/** Every slot of one local day (`YYYY-MM-DD` in `tz`), in every status, by time. */
+export function daySlots(product: string, date: string, tz: string): SlotView[] {
+  const m = DATE_RE.exec(date);
+  if (!m) throw new Error(`bad date "${date}"`);
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const start = zonedToUtc(y, mo, d, 0, 0, tz).toISOString();
+  const end = zonedToUtc(y, mo, d + 1, 0, 0, tz).toISOString();
+  const rows = getDb()
+    .prepare("SELECT * FROM slots WHERE product = ? AND scheduled_at >= ? AND scheduled_at < ? ORDER BY scheduled_at")
+    .all(product, start, end) as unknown as SlotRow[];
+  return rows.map(slotView);
 }
 
 /** Every product; one broken product.yaml must not hide the others, so fall back to loading one by one. */

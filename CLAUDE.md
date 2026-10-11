@@ -28,8 +28,10 @@ Remotion 4, ffmpeg/ffprobe (system), node-cron, pino, vitest.
 ## Commands
 - `pnpm autocm <cmd>` — CLI (`src/cli.ts`): init-db, products list|validate, plan, tick, run [--dashboard] [--watch], dashboard, pause|resume <product>, render-fixture, x connect|whoami, status.
 - Each day the scheduler draws `cadence.posts_per_day_min..max` slots and the next tick writes them all; they publish at their time.
-  The dashboard shows one account at a time (remembered, else the first): what is about to publish (Up next) with
-  Discard (veto), an editable time, "+ Generate post" (adds a slot at a free time and kicks a tick so it is written now)
+  The dashboard shows one account at a time (remembered, else the first), one day at a time (default today; a day strip,
+  newest left, covers planned days and the past week, a calendar the older days with posts): every post of that day,
+  published ones linked to X. Unpublished posts have Discard (deletes the post, its slot and files outright),
+  an editable time, "+ Generate post" (adds a slot at a free time and kicks a tick so it is written now)
   and that account's Pause/Resume. Pause is per account (flag `paused:<slug>`) and only stops publishing:
   posts are still written. There is no global pause.
 - The app runs always-on as systemd user service `autocm` (`deploy/autocm.service`, symlinked) with `run --dashboard --watch`

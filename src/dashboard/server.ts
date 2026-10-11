@@ -10,7 +10,7 @@ import { OUT_DIR, ROOT } from "../core/paths.ts";
 import { SLUG_RE } from "../products/write.ts";
 import { avatarFile, deleteAccount, getAccountJob, listAccountJobs, requireAccount, startAdd, startReconnect, startWebsite } from "./accounts.ts";
 import { ActionError, discardPost, generateSlot, pausePublishing, rescheduleSlot, resumePublishing } from "./actions.ts";
-import { headerState, postView, upcomingSlots } from "./queries.ts";
+import { DATE_RE, daySlots, headerState, localYmd, postDays, writingCount } from "./queries.ts";
 
 export const DEFAULT_PORT = 4321;
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
@@ -166,9 +166,24 @@ export function createApp(): Hono {
   });
 
   // ---------- read API ----------
+  // `?product=` adds that account's days with posts and every slot of one day (`&day=YYYY-MM-DD`, default today).
   app.get("/api/state", (c) => {
     try {
-      return c.json({ ...headerState(), upcoming: upcomingSlots(60, productFilter(c)), account_jobs: listAccountJobs() });
+      const product = productFilter(c);
+      const day = c.req.query("day");
+      if (day !== undefined && (!product || !DATE_RE.test(day))) throw new ActionError(400, `bad day "${day}"`);
+      const head = headerState();
+      const tz = head.products.find((p) => p.slug === product)?.timezone ?? "UTC";
+      const today = product ? localYmd(new Date(), tz) : null;
+      const date = day ?? today;
+      return c.json({
+        ...head,
+        writing: writingCount(product),
+        today,
+        days: product ? postDays(product, tz) : [],
+        day: product && date ? { date, slots: daySlots(product, date, tz) } : null,
+        account_jobs: listAccountJobs(),
+      });
     } catch (e) {
       return fail(c, e);
     }
@@ -217,8 +232,8 @@ export function createApp(): Hono {
   // ---------- actions ----------
   app.post("/api/posts/:id/discard", (c) => {
     try {
-      const r = discardPost(idParam(c));
-      return c.json({ post: postView(r.post), slot: r.slot });
+      discardPost(idParam(c));
+      return c.json({ ok: true });
     } catch (e) {
       return fail(c, e);
     }
