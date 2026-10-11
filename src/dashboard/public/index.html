@@ -34,7 +34,10 @@
     </section>
     <div class="setup" id="setup" hidden></div>
     <section id="view-upcoming" class="view" hidden>
-      <h1 class="view-title">Up next <span class="count" id="count-upcoming"></span></h1>
+      <div class="view-head">
+        <h1 class="view-title">Up next <span class="count" id="count-upcoming"></span></h1>
+        <button class="btn" id="gen-btn" type="button" hidden>+ Generate post</button>
+      </div>
       <p class="lede" id="lede-upcoming">Posts publish automatically at their time unless you discard them.</p>
       <ol class="timeline" id="upcoming"></ol>
       <p class="empty" id="upcoming-empty" hidden>Nothing planned. The scheduler plans each day at 00:05 UTC.</p>

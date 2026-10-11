@@ -9,7 +9,7 @@ import { log } from "../core/log.ts";
 import { OUT_DIR, ROOT } from "../core/paths.ts";
 import { SLUG_RE } from "../products/write.ts";
 import { avatarFile, deleteAccount, getAccountJob, listAccountJobs, requireAccount, startAdd, startReconnect, startWebsite } from "./accounts.ts";
-import { ActionError, discardPost, pausePublishing, resumePublishing } from "./actions.ts";
+import { ActionError, discardPost, generateSlot, pausePublishing, rescheduleSlot, resumePublishing } from "./actions.ts";
 import { headerState, postView, upcomingSlots } from "./queries.ts";
 
 export const DEFAULT_PORT = 4321;
@@ -219,6 +219,22 @@ export function createApp(): Hono {
     try {
       const r = discardPost(idParam(c));
       return c.json({ post: postView(r.post), slot: r.slot });
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+  app.post("/api/accounts/:slug/generate", (c) => {
+    try {
+      const slug = slugParam(c);
+      requireAccount(slug);
+      return c.json({ slot: generateSlot(slug) }, 201);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+  app.post("/api/slots/:id/time", async (c) => {
+    try {
+      return c.json({ slot: rescheduleSlot(idParam(c), (await body(c)).at) });
     } catch (e) {
       return fail(c, e);
     }

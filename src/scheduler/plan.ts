@@ -105,6 +105,53 @@ export function dailyCount(cadence: Product["config"]["cadence"], rand: () => nu
   return Math.min(min + Math.floor(rand() * (max - min + 1)), cadence.daily_cap);
 }
 
+/** Slots that still count: planned, being written, written or published (not discarded or failed). */
+const LIVE_SLOT = "status NOT IN ('skipped','failed')";
+
+/** `intervals` minus the open ranges (t - gap, t + gap) around each of `times`. */
+function carve(intervals: Interval[], times: number[], gapMs: number): Interval[] {
+  let out = intervals;
+  for (const t of times) {
+    out = out.flatMap((iv) => {
+      const pieces: Interval[] = [];
+      if (iv.start <= t - gapMs) pieces.push({ start: iv.start, end: Math.min(iv.end, t - gapMs) });
+      if (iv.end >= t + gapMs) pieces.push({ start: Math.max(iv.start, t + gapMs), end: iv.end });
+      return pieces;
+    });
+  }
+  return out;
+}
+
+/**
+ * One more slot for the product, on demand: a random time on the first local day (today, then up to 6 more) that is
+ * under daily_cap and has room in its windows at least min_gap_min from the account's other slots.
+ * Returns the new slot's id and time, or null when nothing fits.
+ */
+export function addSlot(product: Product, now = new Date(), rand: () => number = Math.random): { id: number; scheduled_at: string } | null {
+  const c = product.config;
+  const gap = c.cadence.min_gap_min * MIN;
+  const db = getDb();
+  for (let d = 0; d < 7; d++) {
+    const range = dayRangeUtc(now, c.timezone, d);
+    const day = db.prepare(`SELECT COUNT(*) AS n FROM slots WHERE product = ? AND ${LIVE_SLOT} AND scheduled_at >= ? AND scheduled_at < ?`).get(c.slug, range.start, range.end) as { n: number };
+    if (Number(day.n) >= c.cadence.daily_cap) continue;
+    const near = db
+      .prepare(`SELECT scheduled_at FROM slots WHERE product = ? AND ${LIVE_SLOT} AND scheduled_at > ? AND scheduled_at < ?`)
+      .all(c.slug, new Date(Date.parse(range.start) - gap).toISOString(), new Date(Date.parse(range.end) + gap).toISOString()) as { scheduled_at: string }[];
+    const free = carve(windowIntervals(product, now, d, now.getTime() + MIN_SCHEDULE_LEAD_MIN * MIN), near.map((r) => Date.parse(r.scheduled_at)), gap);
+    const [t] = pickTimes(free, 1, gap, rand);
+    if (t === undefined) continue;
+    const scheduled = new Date(t).toISOString();
+    const r = db.prepare("INSERT OR IGNORE INTO slots (product, scheduled_at) VALUES (?, ?)").run(c.slug, scheduled);
+    if (Number(r.changes) !== 1) continue;
+    const id = Number(r.lastInsertRowid);
+    logEvent("slot_added", { product: c.slug, payload: { slot_id: id, scheduled_at: scheduled, source: "dashboard" } });
+    log.info({ product: c.slug, slot: id, scheduled_at: scheduled }, "slot added from the dashboard");
+    return { id, scheduled_at: scheduled };
+  }
+  return null;
+}
+
 /** Plan one product. Skips any local day that already has slots. Returns slots created. */
 export function planProductSlots(product: Product, days: number, now = new Date(), rand: () => number = Math.random): number {
   const c = product.config;

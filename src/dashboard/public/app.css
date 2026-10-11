@@ -108,6 +108,7 @@ a:hover { text-decoration: underline; }
 
 main { padding: 8px max(20px, calc((100vw - 1240px) / 2)) 60px; }
 .view-title { font-size: 20px; font-weight: 600; margin: 22px 0 0; }
+.view-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .lede { color: var(--muted); margin: 6px 0 22px; }
 .empty { color: var(--muted); padding: 40px 0; text-align: center; }
 .no-accounts { padding: 56px 0; text-align: center; }
@@ -152,7 +153,13 @@ main { padding: 8px max(20px, calc((100vw - 1240px) / 2)) 60px; }
 .when-local { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .when-count { margin-top: 10px; font-size: 13px; font-weight: 550; font-variant-numeric: tabular-nums; color: var(--ink); }
 .soon .when-count { color: var(--warn); }
-.when .btn-sm { margin-top: 12px; }
+.when > .btn-sm { margin-top: 12px; }
+button.when-time { all: unset; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; cursor: pointer; border-bottom: 1px dashed transparent; }
+button.when-time:hover, button.when-time:focus-visible { border-bottom-color: var(--muted); }
+.time-form { display: grid; gap: 8px; }
+.time-form input { font: 13px var(--font); min-width: 0; color: var(--ink); background: var(--raise); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; width: 100%; box-sizing: border-box; }
+.time-form-row { display: flex; gap: 6px; }
+.time-form input[name=time] { font-size: 17px; font-weight: 600; padding: 4px 8px; }
 .btn-sm { padding: 4px 12px; font-size: 13px; }
 
 .warn { margin: 0; font-size: 13px; padding: 8px 12px; border-radius: 8px; max-width: 60ch; }
@@ -390,7 +397,8 @@ img.tw-avatar { object-fit: cover; background: var(--raise); }
   .when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
   .when::after { display: none; }
   .when-count { margin-top: 0; }
-  .when .btn-sm { margin: 0 0 0 auto; align-self: center; }
+  .when > .btn-sm { margin: 0 0 0 auto; align-self: center; }
+  .time-form { flex-basis: 100%; }
   .top-row { gap: 10px 12px; }
   .acct-btn { max-width: calc(100vw - 150px); }
   .status { order: 3; flex-basis: 100%; }

@@ -5,7 +5,7 @@ const REFRESH_MS = 15_000;
 const FAST_REFRESH_MS = 3_000;
 
 const $ = (sel) => document.querySelector(sel);
-const state = { data: null, busy: new Set(), products: new Map(), selected: loadSelected() };
+const state = { data: null, busy: new Set(), products: new Map(), selected: loadSelected(), editing: null };
 const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const LOCALE = "en-GB"; // the UI copy is English; keep dates in English too
 
@@ -39,6 +39,16 @@ function fmtTime(iso, tz, withDay = true) {
   const opts = { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz };
   if (withDay) Object.assign(opts, { weekday: "short", day: "numeric", month: "short" });
   return new Intl.DateTimeFormat(LOCALE, opts).format(new Date(iso));
+}
+
+/** "YYYY-MM-DDTHH:MM" wall time of `iso` in `tz` (split into the date and time inputs). */
+function localInput(iso, tz) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(new Date(iso))
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
 function tzAbbr(iso, tz) {
@@ -133,7 +143,7 @@ function tweetCard(post, when) {
 function btn(action, label, id, opts = {}) {
   const key = `${action}:${id}`;
   const busy = state.busy.has(key);
-  return `<button type="button" class="btn ${opts.cls ?? ""}" data-action="${action}" data-id="${id}" ${busy ? "disabled" : ""}>${busy ? opts.busyLabel ?? "Working…" : label}</button>`;
+  return `<button type="${opts.type ?? "button"}" class="btn ${opts.cls ?? ""}" data-action="${action}" data-id="${id}" ${busy ? "disabled" : ""}>${busy ? opts.busyLabel ?? "Working…" : label}</button>`;
 }
 
 /** Colour of the timeline dot. */
@@ -161,9 +171,18 @@ function slotHtml(slot) {
   const discard = slot.status === "generated" && post ? btn("discard", "Discard", post.id, { cls: "btn-danger btn-sm", busyLabel: "Discarding…" }) : "";
 
   const soon = !late && Date.parse(slot.scheduled_at) - Date.now() < 3_600_000 && slot.status === "generated";
+  // Every slot in Up next has not published yet, so its time can change. The input holds no live value in the markup,
+  // so the 15 s refresh does not replace the form while it is being edited.
+  const time = state.editing === slot.id
+    ? `<form class="time-form" data-time-form="${slot.id}">
+        <input type="time" name="time" required value="${esc(localInput(slot.scheduled_at, p.timezone).slice(11))}" aria-label="New time (${esc(p.timezone)})">
+        <input type="date" name="date" required value="${esc(localInput(slot.scheduled_at, p.timezone).slice(0, 10))}" aria-label="Day">
+        <div class="time-form-row">${btn("save-time", "Save", slot.id, { cls: "btn-primary btn-sm", busyLabel: "Saving…", type: "submit" })}<button type="button" class="btn btn-sm" data-action="cancel-time" data-id="${slot.id}">Cancel</button></div>
+      </form>`
+    : `<button type="button" class="when-time" data-action="edit-time" data-id="${slot.id}" title="Change the time">${esc(fmtTime(slot.scheduled_at, p.timezone, false))}</button>`;
   return `<li class="slot tone-${tone}${soon ? " soon" : ""}" data-key="slot-${slot.id}">
     <div class="when">
-      <div class="when-time">${esc(fmtTime(slot.scheduled_at, p.timezone, false))}</div>
+      ${time}
       <div class="when-tz">${esc(tzAbbr(slot.scheduled_at, p.timezone))} · ${esc(dayLabel(slot.scheduled_at, p.timezone))}</div>
       ${sameTz ? "" : `<div class="when-local">${esc(fmtTime(slot.scheduled_at, localTz, false))} your time</div>`}
       <div class="when-count" data-countdown="${esc(slot.scheduled_at)}"></div>
@@ -215,6 +234,10 @@ function renderHeader(d) {
   const p = readyAccount();
   const pb = $("#pause-btn");
   pb.hidden = !p;
+  const gb = $("#gen-btn");
+  gb.hidden = !p;
+  gb.disabled = state.busy.has("generate");
+  gb.textContent = gb.disabled ? "Adding…" : "+ Generate post";
   if (!p) {
     $("#status").innerHTML = "";
     $("#quotas").innerHTML = "";
@@ -327,9 +350,46 @@ document.addEventListener("click", (ev) => {
   const id = Number(b.dataset.id);
   const action = b.dataset.action;
   if (action === "discard") {
-    if (!confirm(`Discard post #${id}? It will not be published and nothing replaces it.`)) return;
-    run(`discard:${id}`, () => api("POST", `/api/posts/${id}/discard`), `Discarded post #${id}.`);
+    if (!confirm("Discard this post? It will not be published.")) return;
+    run(`discard:${id}`, () => api("POST", `/api/posts/${id}/discard`), "Post discarded.");
+  } else if (action === "edit-time") {
+    state.editing = id;
+    render();
+    document.querySelector(`[data-time-form="${id}"] input`)?.focus();
+  } else if (action === "cancel-time") {
+    state.editing = null;
+    render();
   }
+});
+
+document.addEventListener("submit", (ev) => {
+  const form = ev.target.closest("[data-time-form]");
+  if (!form) return;
+  ev.preventDefault();
+  const id = Number(form.dataset.timeForm);
+  const f = new FormData(form);
+  const at = `${f.get("date")}T${f.get("time")}`;
+  run(`save-time:${id}`, async () => {
+    await api("POST", `/api/slots/${id}/time`, { at });
+    state.editing = null;
+  }, "Time changed.");
+});
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && state.editing !== null && ev.target.closest?.("[data-time-form]")) {
+    state.editing = null;
+    render();
+  }
+});
+
+$("#gen-btn").addEventListener("click", () => {
+  const p = readyAccount();
+  if (!p) return;
+  run(
+    "generate",
+    () => api("POST", `/api/accounts/${encodeURIComponent(p.slug)}/generate`),
+    (r) => `New post for ${fmtTime(r.slot.scheduled_at, p.timezone)}. ${p.paused ? "It is written when you resume." : "Writing it now."}`,
+  );
 });
 
 $("#pause-btn").addEventListener("click", () => {
