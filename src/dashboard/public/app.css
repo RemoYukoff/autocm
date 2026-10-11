@@ -281,7 +281,7 @@ button.when-time:hover, button.when-time:focus-visible { border-bottom-color: va
 .acct-btn.paused:hover { border-color: var(--warn); }
 .pause-mark { display: inline-flex; gap: 2px; flex: none; vertical-align: -1px; margin-right: 3px; }
 .pause-mark i { width: 3px; height: 10px; border-radius: 1px; background: var(--warn); }
-.acct-paused { display: flex; align-items: center; gap: 6px; color: var(--warn); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acct-paused { margin-top: 2px; display: flex; align-items: center; gap: 6px; color: var(--warn); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acct-paused .pause-mark { margin: 0; }
 .acct-paused .pause-mark i { width: 2.5px; height: 9px; }
 /* A paused account in the menu: yellow tint and a yellow bar on the left. */

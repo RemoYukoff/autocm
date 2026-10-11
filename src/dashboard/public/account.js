@@ -63,7 +63,7 @@ export function createAccounts(ctx) {
 
   const PAUSE_MARK = `<span class="pause-mark" aria-hidden="true"><i></i><i></i></span>`;
 
-  /** A paused account: a yellow line under the name, on top of whatever else the row says. */
+  /** A paused account: a yellow line at the bottom of the row, after whatever else it says. */
   function pausedLine(p) {
     return p.paused ? `<span class="acct-paused">${PAUSE_MARK}Paused · not publishing</span>` : "";
   }
@@ -110,7 +110,7 @@ export function createAccounts(ctx) {
         }
         return `<div class="acct-row${p.enabled || p.setup === "website" ? "" : " off"}${p.paused ? " paused" : ""}">
           <button type="button" class="acct-item" role="menuitemradio" aria-checked="${p.slug === state.selected}" data-acct-select="${esc(p.slug)}">
-            ${avatarHtml(p)}<span class="acct-text"><span class="acct-name">${esc(p.name)}</span>${pausedLine(p)}${subline(p)}</span>
+            ${avatarHtml(p)}<span class="acct-text"><span class="acct-name">${esc(p.name)}</span>${subline(p)}${pausedLine(p)}</span>
           </button>
           <div class="acct-tools">${tools.join("")}</div>
         </div>`;
