@@ -145,16 +145,13 @@ const SLOT_STATUS = {
 function slotHtml(slot) {
   const p = product(slot.product);
   const post = slot.post;
-  let [statusLabel, tone] = SLOT_STATUS[slot.status];
-  if (slot.status === "generated" && p.paused) [statusLabel, tone] = ["On hold: paused", "neutral"];
+  const [statusLabel, tone] = SLOT_STATUS[slot.status];
   const sameTz = p.timezone === localTz;
   const late = Date.parse(slot.scheduled_at) < Date.now();
 
   let body;
   if (slot.status === "pending") {
-    body = p.paused
-      ? `<div class="placeholder"><p class="muted">Publishing is paused for ${esc(p.name)}, so the bot is not writing this post yet.</p></div>`
-      : `<div class="placeholder"><p class="muted">The bot writes this post on its next pass (every 5 min).</p></div>`;
+    body = `<div class="placeholder"><p class="muted">Not written yet.</p></div>`;
   } else if (slot.status === "claimed") {
     const since = slot.claimed_at;
     body = `<div class="placeholder writing"><span class="spinner" aria-hidden="true"></span><p>Writing the post${since ? ` <span class="muted" data-since="${esc(since)}"></span>` : ""}. This takes 20 s to 3 min.</p></div>`;
@@ -265,9 +262,6 @@ function render() {
   $("#upcoming-empty").textContent = cur.setup === "website"
     ? "Posts are planned as soon as the account has its website."
     : `Nothing planned for ${cur.name}. The scheduler plans each day at 00:05 UTC.`;
-  $("#lede-upcoming").textContent = cur.paused
-    ? `Publishing is paused for ${cur.name}. Nothing goes out until you resume; posts past their time by more than 3 h are skipped.`
-    : "Posts publish automatically at their time unless you discard them.";
   $("#count-upcoming").textContent = d.upcoming.length || "";
   tickClocks();
 }

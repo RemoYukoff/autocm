@@ -7,8 +7,8 @@
 }
 
 .headline {
-  font-size: calc(var(--s) * 132px);
-  font-weight: 600;
+  font-size: calc(var(--s) * 140px);
+  font-weight: 700;
   line-height: 1.02;
   letter-spacing: -0.045em;
   text-wrap: balance;

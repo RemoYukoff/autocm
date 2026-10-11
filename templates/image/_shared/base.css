@@ -1,23 +1,31 @@
-/* Shared card chrome. Brand tokens (--bg, --fg, --muted, --hl, --primary, --accent, --sans, --mono)
-   come from /brand.css, generated per product by src/media/image.ts. */
+/* Shared card chrome. Brand tokens (--bg, --fg, --muted, --hl, --on-hl, --primary, --accent, --sans, --mono)
+   come from /brand.css, generated per product by src/media/image.ts. --hl always contrasts with --bg. */
 
 :root {
   --pad-x: 104px;
   --pad-y: 84px;
   --foot: 22px;
-  --eyebrow: 17px;
+  --eyebrow: 20px;
   --soft: color-mix(in oklab, var(--fg) 64%, var(--bg));
   --faint: color-mix(in oklab, var(--fg) 42%, var(--bg));
   --line: color-mix(in oklab, var(--fg) 10%, transparent);
   --line-strong: color-mix(in oklab, var(--fg) 16%, transparent);
   --panel: color-mix(in oklab, var(--fg) 3.5%, var(--bg));
+  /* "Wrong" and "added/removed" read the same in every brand: red / green. */
+  --no: #ff5a52;
+  --yes: #3fcf72;
+}
+
+.theme-light {
+  --no: #e5322d;
+  --yes: #1a9b4b;
 }
 
 body.portrait {
   --pad-x: 88px;
   --pad-y: 92px;
   --foot: 24px;
-  --eyebrow: 19px;
+  --eyebrow: 22px;
 }
 
 * {
@@ -42,9 +50,25 @@ body {
   font-kerning: normal;
 }
 
+/* Highlight = marker stroke behind the words, not just a color. */
 em.hl {
   font-style: normal;
-  color: var(--hl);
+  color: var(--on-hl);
+  background: var(--hl);
+  padding: 0 0.14em;
+  margin: 0 -0.04em;
+  border-radius: 0.08em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Struck = the wrong answer, crossed out in red, still readable. */
+s.x {
+  text-decoration: line-through;
+  text-decoration-color: var(--no);
+  text-decoration-thickness: 0.09em;
+  text-decoration-skip-ink: none;
+  color: var(--faint);
 }
 
 .card {
@@ -128,27 +152,30 @@ em.hl {
   margin-bottom: 36px;
 }
 
+/* Kicker sticker ("Hot take", "POV"): inverted pill, slightly tilted. */
 .eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  padding: 0.55em 0.95em 0.5em;
+  border-radius: 999px;
+  background: var(--fg);
+  color: var(--bg);
   font-family: var(--mono);
   font-size: var(--eyebrow);
   font-weight: 500;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--soft);
+  transform: rotate(-2deg);
+  transform-origin: left center;
 }
 
 .eyebrow .sq {
-  width: 9px;
-  height: 9px;
-  background: var(--primary);
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: var(--no);
   display: inline-block;
-}
-
-.theme-dark .eyebrow .sq {
-  background: var(--accent);
 }
 
 /* ---------- Body (fit region) ---------- */

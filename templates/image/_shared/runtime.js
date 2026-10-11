@@ -12,11 +12,12 @@ export function el(tag, cls, text) {
   return n;
 }
 
-/** Render [{text, hl}] segments; highlighted runs become <em class="hl">. */
+/** Render [{text, hl, strike}] segments: highlighted runs become <em class="hl">, struck ones <s class="x">. */
 export function segs(node, segments) {
   node.textContent = "";
   for (const s of segments || []) {
     if (s.hl) node.append(el("em", "hl", s.text));
+    else if (s.strike) node.append(el("s", "x", s.text));
     else node.append(document.createTextNode(s.text));
   }
   return node;

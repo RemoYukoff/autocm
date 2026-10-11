@@ -3,8 +3,8 @@
 }
 
 .headline {
-  font-size: calc(var(--s) * 76px);
-  font-weight: 600;
+  font-size: calc(var(--s) * 84px);
+  font-weight: 700;
   line-height: 1.04;
   letter-spacing: -0.04em;
   text-wrap: balance;
@@ -19,12 +19,13 @@
   column-gap: calc(var(--s) * 28px);
 }
 
+/* The winning column is a solid block in the highlight color; the losing one stays dim. */
 .panel {
   grid-column: 2;
-  border-radius: 20px;
-  background: color-mix(in oklab, var(--primary) 9%, var(--bg));
-  border: 1px solid color-mix(in oklab, var(--accent) 34%, transparent);
-  box-shadow: 0 0 0 6px color-mix(in oklab, var(--primary) 5%, transparent);
+  border-radius: 22px;
+  background: var(--hl);
+  transform: rotate(-0.6deg);
+  box-shadow: 0 30px 80px -30px color-mix(in oklab, var(--hl) 45%, transparent);
   z-index: 0;
 }
 
@@ -42,13 +43,16 @@
 
 .cell.right {
   grid-column: 2;
-  color: var(--fg);
-  font-weight: 500;
-  border-bottom-color: color-mix(in oklab, var(--accent) 16%, transparent);
+  color: var(--on-hl);
+  font-weight: 600;
+  border-bottom-color: color-mix(in oklab, var(--on-hl) 14%, transparent);
 }
 
 .cell.left {
   color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--no) 70%, transparent);
+  text-decoration-thickness: 0.07em;
 }
 
 .cell.last {
@@ -70,12 +74,13 @@
 }
 
 .cell.head.left {
-  color: var(--faint);
+  color: var(--no);
+  text-decoration: none;
 }
 
 .cell.head.right {
-  color: var(--hl);
-  border-bottom-color: color-mix(in oklab, var(--accent) 30%, transparent);
+  color: var(--on-hl);
+  border-bottom-color: color-mix(in oklab, var(--on-hl) 24%, transparent);
 }
 
 .ico {
@@ -93,16 +98,23 @@
 }
 
 .head.left .ico {
-  background: color-mix(in oklab, var(--fg) 7%, transparent);
+  background: color-mix(in oklab, var(--no) 16%, transparent);
 }
 
 .head.right .ico {
-  background: var(--primary);
-  color: #fff;
+  background: var(--on-hl);
+  color: var(--hl);
 }
 
 .cell.left em.hl {
+  background: none;
   color: var(--soft);
+  padding: 0;
+}
+
+.cell.right em.hl {
+  background: var(--on-hl);
+  color: var(--hl);
 }
 
 .portrait .headline {

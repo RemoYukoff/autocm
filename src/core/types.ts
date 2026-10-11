@@ -124,7 +124,7 @@ export type Format = z.infer<typeof Format>;
 export const MediaKind = z.enum(["none", "template", "ai_image", "remotion", "clip", "ai_video"]);
 export type MediaKind = z.infer<typeof MediaKind>;
 
-export const TemplateId = z.enum(["statement", "comparison", "stat", "checklist", "screenshot"]);
+export const TemplateId = z.enum(["statement", "poster", "meme", "chat", "diff", "comparison", "stat", "checklist", "screenshot"]);
 export type TemplateId = z.infer<typeof TemplateId>;
 
 export interface Capabilities {
@@ -157,6 +157,7 @@ export const Brief = z.object({
   template_id: TemplateId.optional().describe("Required when media_kind is template"),
   clip_id: z.string().optional().describe("Required when media_kind is clip"),
   screen_id: z.string().optional().describe("Optional screenshot for the screenshot template"),
+  theme: z.enum(["dark", "light"]).optional().describe("Required when media_kind is template: card background"),
   include_link: z.boolean(),
   visual_direction: z.string().optional().describe("For ai_image / ai_video: what the visual should show"),
   rationale: z.string().describe("Why this pillar, angle and format now"),
@@ -167,6 +168,7 @@ export const MediaCopy = z.object({
   headline: z.string().describe("Main text on the image/video; may wrap *words* to highlight"),
   lines: z.array(z.string()).default([]).describe("Supporting lines, bullets, comparison rows or video beats"),
   highlight_words: z.array(z.string()).default([]),
+  kicker: z.string().optional().describe("Small label above the headline, e.g. 'Hot take', 'POV', 'Unpopular opinion'"),
   stat: z.string().optional().describe("Big number for the stat template, e.g. '~$1.30'"),
   left_label: z.string().optional().describe("Comparison template left column title"),
   right_label: z.string().optional().describe("Comparison template right column title"),

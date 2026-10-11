@@ -21,7 +21,8 @@ export interface Brand {
   url: string;
   host: string;
   theme: Theme;
-  colors: { bg: string; fg: string; muted: string; hl: string; primary: string; accent: string; ink: string; paper: string };
+  /** hl and primary always contrast with bg; onHl is the text color on an hl-filled block. */
+  colors: { bg: string; fg: string; muted: string; hl: string; onHl: string; primary: string; accent: string; ink: string; paper: string };
   sansStack: string;
   monoStack: string;
   /** Font files to register (product fonts first, bundled Geist fallback last). */
@@ -93,10 +94,13 @@ export function resolveBrand(product: Product, theme: Theme = "dark"): Brand {
   const col = c.brand.colors;
   const notes: string[] = [];
   const muted = col.muted ?? "#71717A";
-  const colors =
-    theme === "dark"
-      ? { bg: col.ink, fg: col.bg, muted, hl: col.accent, primary: col.primary, accent: col.accent, ink: col.ink, paper: col.bg }
-      : { bg: col.bg, fg: col.ink, muted, hl: col.primary, primary: col.primary, accent: col.accent, ink: col.ink, paper: col.bg };
+  const bg = theme === "dark" ? col.ink : col.bg;
+  const fg = theme === "dark" ? col.bg : col.ink;
+  // A monochrome site gives accent == primary == ink, which vanishes on a dark card: brand colors that do
+  // not stand out from the background give way to the foreground.
+  const pop = (c: string) => (contrast(c, bg) >= 2.5 ? c : fg);
+  const hl = pop(theme === "dark" ? col.accent : col.primary);
+  const colors = { bg, fg, muted, hl, onHl: contrast(bg, hl) >= contrast(fg, hl) ? bg : fg, primary: pop(col.primary), accent: pop(col.accent), ink: col.ink, paper: col.bg };
 
   const sans = c.brand.fonts.sans;
   const mono = c.brand.fonts.mono;
@@ -130,9 +134,26 @@ export function resolveBrand(product: Product, theme: Theme = "dark"): Brand {
   };
 }
 
+function luminance(hex: string): number {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 0.5;
+  const h = m[1]!.length === 3 ? [...m[1]!].map((c) => c + c).join("") : m[1]!;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+
+/** WCAG contrast ratio between two hex colors (1..21). */
+export function contrast(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x! + 0.05) / (y! + 0.05);
+}
+
 /** :root custom properties shared by templates (and mirrored in Remotion props). */
 export function brandCssVars(b: Brand): string {
-  return `:root{--bg:${b.colors.bg};--fg:${b.colors.fg};--muted:${b.colors.muted};--hl:${b.colors.hl};--primary:${b.colors.primary};--accent:${b.colors.accent};--sans:${b.sansStack};--mono:${b.monoStack};color-scheme:${b.theme};}`;
+  return `:root{--bg:${b.colors.bg};--fg:${b.colors.fg};--muted:${b.colors.muted};--hl:${b.colors.hl};--on-hl:${b.colors.onHl};--primary:${b.colors.primary};--accent:${b.colors.accent};--sans:${b.sansStack};--mono:${b.monoStack};color-scheme:${b.theme};}`;
 }
 
 export function fontFaceCss(fonts: FontFile[], urlFor: (f: FontFile, i: number) => string): string {

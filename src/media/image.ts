@@ -8,7 +8,7 @@ import { TEMPLATES_DIR } from "../core/paths.ts";
 import type { MediaCopy, MediaFile, Product, TemplateId } from "../core/types.ts";
 import { launchBrowser } from "./browser.ts";
 import { brandCssVars, fontFaceCss, resolveBrand, type Brand, type Theme } from "./brand.ts";
-import { parseHighlights, splitComparison, type Segment } from "./copy.ts";
+import { parseHighlights, splitComparison, splitDiff, splitSpeaker, type Segment } from "./copy.ts";
 import { pngSize } from "./files.ts";
 
 export type ImageSize = "landscape" | "portrait";
@@ -29,7 +29,6 @@ export interface TemplateRequest {
   screen?: string;
   /** Absolute path of a generated background (ai_image composite). */
   background?: string;
-  eyebrow?: string;
 }
 
 export interface TemplateData {
@@ -44,6 +43,10 @@ export interface TemplateData {
   leftLabel: string | null;
   rightLabel: string | null;
   rows: [Segment[], Segment[]][];
+  /** meme / chat lines: "Who: what they say". */
+  pairs: { who: string | null; text: Segment[] }[];
+  /** diff lines: "+ added", "- removed", anything else is context. */
+  diff: { op: "+" | "-" | " "; text: Segment[] }[];
   screen: string | null;
   background: string | null;
 }
@@ -64,13 +67,15 @@ export function buildTemplateData(req: TemplateRequest, brand: Brand): TemplateD
     size: IMAGE_SIZES[req.size ?? "landscape"],
     theme: brand.theme,
     brand: { name: brand.name, host: brand.host, logo: brand.logo },
-    eyebrow: req.eyebrow ?? null,
+    eyebrow: copy.kicker?.trim() || null,
     headline: p(copy.headline),
     lines: lines.map(p),
     stat: copy.stat ?? null,
     leftLabel: copy.left_label ?? null,
     rightLabel: copy.right_label ?? null,
     rows: req.templateId === "comparison" ? lines.map((l) => splitComparison(l).map(p) as [Segment[], Segment[]]) : [],
+    pairs: req.templateId === "meme" || req.templateId === "chat" ? lines.map(splitSpeaker).map(({ who, text }) => ({ who, text: p(text) })) : [],
+    diff: req.templateId === "diff" ? lines.map(splitDiff).map(({ op, text }) => ({ op, text: p(text) })) : [],
     screen: req.screen ? `${ORIGIN}/asset/screen${path.extname(req.screen)}` : null,
     background: req.background ? `${ORIGIN}/asset/background${path.extname(req.background)}` : null,
   };
