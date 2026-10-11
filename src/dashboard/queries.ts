@@ -6,7 +6,7 @@ import { env } from "../core/env.ts";
 import { OUT_DIR } from "../core/paths.ts";
 import type { MediaResult, PostRow, PostStatus, Product, XAccount } from "../core/types.ts";
 import type { SlotRow } from "../scheduler/index.ts";
-import { countPublishedBetween, weightedLength } from "../safety/guards.ts";
+import { countPublishedBetween } from "../safety/guards.ts";
 import { isPaused } from "../safety/pause.ts";
 import { dayRangeUtc } from "../safety/time.ts";
 import { avatarFile } from "./accounts.ts";
@@ -26,23 +26,9 @@ export interface PostView {
   product: string;
   slot_id: number | null;
   status: PostStatus;
-  format: string | null;
-  media_kind: string | null;
-  fallback_from: string | null;
-  pillar: string | null;
-  angle: string | null;
-  hook_idea: string | null;
-  rationale: string | null;
   text: string | null;
-  weighted_length: number | null;
   alt_text: string | null;
   media: MediaView[];
-  url: string | null;
-  tweet_id: string | null;
-  error: string | null;
-  created_at: string;
-  updated_at: string;
-  published_at: string | null;
 }
 
 export interface SlotView {
@@ -104,7 +90,6 @@ export function mediaUrl(file: string): string | null {
 
 export function postView(p: PostRow): PostView {
   const media = parseJson<Partial<MediaResult>>(p.media_json);
-  const brief = parseJson<Record<string, unknown>>(p.brief_json);
   const poster = (media?.preview_frames ?? []).map(mediaUrl).find((u): u is string => !!u);
   const files: MediaView[] = [];
   for (const f of media?.files ?? []) {
@@ -119,30 +104,7 @@ export function postView(p: PostRow): PostView {
       poster: f.mime.startsWith("video/") ? poster : undefined,
     });
   }
-  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
-  return {
-    id: p.id,
-    product: p.product,
-    slot_id: p.slot_id,
-    status: p.status,
-    format: p.format,
-    media_kind: p.media_kind,
-    fallback_from: media?.fallback_from ?? null,
-    pillar: p.pillar ?? str(brief?.pillar),
-    angle: p.angle ?? str(brief?.angle),
-    hook_idea: str(brief?.hook_idea),
-    rationale: str(brief?.rationale),
-    text: p.text,
-    weighted_length: p.text ? weightedLength(p.text).length : null,
-    alt_text: p.alt_text,
-    media: files,
-    url: p.url,
-    tweet_id: p.tweet_id,
-    error: p.error,
-    created_at: p.created_at,
-    updated_at: p.updated_at,
-    published_at: p.published_at,
-  };
+  return { id: p.id, product: p.product, slot_id: p.slot_id, status: p.status, text: p.text, alt_text: p.alt_text, media: files };
 }
 
 export function getSlot(id: number): SlotRow | undefined {

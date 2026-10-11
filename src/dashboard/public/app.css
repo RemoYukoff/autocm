@@ -113,7 +113,7 @@ main { padding: 8px max(20px, calc((100vw - 1240px) / 2)) 60px; }
 .no-accounts { padding: 56px 0; text-align: center; }
 .no-accounts .lede { margin: 8px auto 20px; max-width: 46ch; }
 
-/* Up next: a real timeline. Left rail = when, middle = the post as X will show it, right = why and what to do. */
+/* Up next: a real timeline. Left rail = when, middle = the post as X will show it, right = status and Discard. */
 .timeline { list-style: none; margin: 0; padding: 0; }
 .slot {
   display: grid;
@@ -155,12 +155,6 @@ main { padding: 8px max(20px, calc((100vw - 1240px) / 2)) 60px; }
 
 .slot-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .slot-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
-.facts dt { color: var(--muted); }
-.facts dd { margin: 0; }
-.angle { margin: 0; font-size: 14.5px; font-weight: 550; line-height: 1.4; max-width: 52ch; }
-.rationale { margin: 0; color: #c4c9cf; font-size: 13.5px; max-width: 60ch; }
-.rationale span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
 .warn { margin: 0; font-size: 13px; padding: 8px 12px; border-radius: 8px; max-width: 60ch; }
 .warn { color: #ffd7d5; background: rgb(240 98 93 / 0.1); border: 1px solid rgb(240 98 93 / 0.25); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }

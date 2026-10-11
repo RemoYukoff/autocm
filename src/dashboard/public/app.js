@@ -130,22 +130,6 @@ function tweetCard(post, when) {
   </article>`;
 }
 
-const FORMAT_NAMES = { text: "Text", image: "Image", video: "Video" };
-const KIND_NAMES = { none: "no media", template: "branded template", ai_image: "AI image", remotion: "kinetic video", clip: "product clip", ai_video: "AI video" };
-
-function metaHtml(post) {
-  const rows = [];
-  const fmt = post.format ? `${FORMAT_NAMES[post.format] ?? post.format}${post.media_kind ? `, ${KIND_NAMES[post.media_kind] ?? post.media_kind}` : ""}` : "";
-  if (fmt) rows.push(["Format", fmt + (post.fallback_from ? ` (fell back from ${KIND_NAMES[post.fallback_from] ?? post.fallback_from})` : "")]);
-  if (post.pillar) rows.push(["Pillar", post.pillar]);
-  if (post.weighted_length != null) rows.push(["Length", `${post.weighted_length} of 280`]);
-  const dl = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
-  return `<dl class="facts">${dl}</dl>
-    ${post.angle ? `<p class="angle">${esc(post.angle)}</p>` : ""}
-    ${post.rationale ? `<p class="rationale"><span>Why now</span>${esc(post.rationale)}</p>` : ""}
-    ${post.error && post.status === "approved" ? `<p class="warn">${esc(post.error.startsWith("guard: ") ? `Last publish attempt blocked: ${post.error.slice(7)}` : post.error)}</p>` : ""}`;
-}
-
 function btn(action, label, id, opts = {}) {
   const key = `${action}:${id}`;
   const busy = state.busy.has(key);
@@ -180,8 +164,6 @@ function slotHtml(slot) {
     body = `<div class="placeholder"><p class="muted">No post for this slot.</p></div>`;
   }
 
-  let note = "";
-  if (slot.status === "generated" && late) note = `<p class="warn">Past its time. The scheduler retries every 5 min${post?.error ? `: ${esc(post.error)}` : ""}.</p>`;
   const actions = slot.status === "generated" && post ? btn("discard", "Discard", post.id, { cls: "btn-danger", busyLabel: "Discarding…" }) : "";
 
   const soon = !late && Date.parse(slot.scheduled_at) - Date.now() < 3_600_000 && slot.status === "generated";
@@ -194,9 +176,7 @@ function slotHtml(slot) {
     </div>
     <div class="slot-main">${body}</div>
     <aside class="slot-side">
-      <div class="slot-head"><span class="pill pill-${tone}">${esc(statusLabel)}</span><span class="muted small">${esc(p.name)} · slot ${slot.id}</span></div>
-      ${post && slot.status !== "claimed" ? metaHtml(post) : ""}
-      ${note}
+      <div class="slot-head"><span class="pill pill-${tone}">${esc(statusLabel)}</span></div>
       ${actions ? `<div class="actions">${actions}</div>` : ""}
     </aside>
   </li>`;
