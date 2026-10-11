@@ -157,11 +157,9 @@ function slotHtml(slot) {
   const late = Date.parse(slot.scheduled_at) < Date.now();
 
   let body;
-  if (slot.status === "pending") {
-    body = `<div class="placeholder"><p class="muted">Not written yet.</p></div>`;
-  } else if (slot.status === "claimed") {
-    const since = slot.claimed_at;
-    body = `<div class="placeholder writing"><span class="spinner" aria-hidden="true"></span><p>Writing the post${since ? ` <span class="muted" data-since="${esc(since)}"></span>` : ""}. This takes 20 s to 3 min.</p></div>`;
+  if (slot.status === "pending" || slot.status === "claimed") {
+    const since = slot.status === "claimed" ? slot.claimed_at : null;
+    body = `<div class="placeholder writing"><span class="spinner" aria-hidden="true"></span><p>Generating…${since ? ` <span class="muted" data-since="${esc(since)}"></span>` : ""}</p></div>`;
   } else if (post) {
     body = tweetCard(post, fmtTime(slot.scheduled_at, p.timezone, false));
   } else {
