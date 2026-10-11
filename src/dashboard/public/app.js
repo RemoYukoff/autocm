@@ -136,16 +136,13 @@ function btn(action, label, id, opts = {}) {
   return `<button type="button" class="btn ${opts.cls ?? ""}" data-action="${action}" data-id="${id}" ${busy ? "disabled" : ""}>${busy ? opts.busyLabel ?? "Working…" : label}</button>`;
 }
 
-const SLOT_STATUS = {
-  pending: ["Queued", "neutral"],
-  claimed: ["Writing", "busy"],
-  generated: ["Will publish", "go"],
-};
+/** Colour of the timeline dot. */
+const SLOT_TONE = { pending: "neutral", claimed: "busy", generated: "go" };
 
 function slotHtml(slot) {
   const p = product(slot.product);
   const post = slot.post;
-  const [statusLabel, tone] = SLOT_STATUS[slot.status];
+  const tone = SLOT_TONE[slot.status];
   const sameTz = p.timezone === localTz;
   const late = Date.parse(slot.scheduled_at) < Date.now();
 
@@ -161,7 +158,7 @@ function slotHtml(slot) {
     body = `<div class="placeholder"><p class="muted">No post for this slot.</p></div>`;
   }
 
-  const actions = slot.status === "generated" && post ? btn("discard", "Discard", post.id, { cls: "btn-danger", busyLabel: "Discarding…" }) : "";
+  const discard = slot.status === "generated" && post ? btn("discard", "Discard", post.id, { cls: "btn-danger btn-sm", busyLabel: "Discarding…" }) : "";
 
   const soon = !late && Date.parse(slot.scheduled_at) - Date.now() < 3_600_000 && slot.status === "generated";
   return `<li class="slot tone-${tone}${soon ? " soon" : ""}" data-key="slot-${slot.id}">
@@ -170,12 +167,9 @@ function slotHtml(slot) {
       <div class="when-tz">${esc(tzAbbr(slot.scheduled_at, p.timezone))} · ${esc(dayLabel(slot.scheduled_at, p.timezone))}</div>
       ${sameTz ? "" : `<div class="when-local">${esc(fmtTime(slot.scheduled_at, localTz, false))} your time</div>`}
       <div class="when-count" data-countdown="${esc(slot.scheduled_at)}"></div>
+      ${discard}
     </div>
     <div class="slot-main">${body}</div>
-    <aside class="slot-side">
-      <div class="slot-head"><span class="pill pill-${tone}">${esc(statusLabel)}</span></div>
-      ${actions ? `<div class="actions">${actions}</div>` : ""}
-    </aside>
   </li>`;
 }
 

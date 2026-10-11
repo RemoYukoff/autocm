@@ -24,8 +24,6 @@
   grid-column: 2;
   border-radius: 22px;
   background: var(--hl);
-  transform: rotate(-0.6deg);
-  box-shadow: 0 30px 80px -30px color-mix(in oklab, var(--hl) 45%, transparent);
   z-index: 0;
 }
 

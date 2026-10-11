@@ -18,11 +18,12 @@ export interface CopywriterInput {
 }
 
 const MEDIA_COPY_GUIDE: Record<string, string> = {
-  statement: "headline: one bold line (max ~12 words). lines: 0-1 short supporting line.",
-  comparison: 'left_label and right_label: column titles (1-3 words). lines: 3-5 rows formatted exactly "left | right", each side max ~6 words. headline: short title.',
-  stat: "stat: the big number/figure (max ~8 chars, e.g. \"~$1.30\"). headline: what the number means (max ~8 words). lines: 0-1 short context line.",
-  checklist: "headline: list title (max ~7 words). lines: 3-6 items, each max ~8 words.",
-  screenshot: "headline: one line describing what the screenshot shows and why it matters (max ~10 words). lines: 0-1 caption.",
+  statement: "headline: one bold claim (max ~10 words), the line someone would quote. lines: 0-1 short supporting line.",
+  poster: 'headline: the hot take itself, max ~8 words, as blunt as the facts allow. Cross out the wrong word with ~tildes~ and highlight the right one, e.g. "Your AI doesn\'t ~test~. It *guesses*." lines: 0-1 short deadpan follow-up (max ~6 words). kicker: e.g. "Hot take", "Unpopular opinion".',
+  meme: 'lines: 2-5 rows "Who: text" in a known text-meme shape ("Nobody:" with empty text, "PM:", "QA at 6pm Friday:", "Expectation:/Reality:", "Day 1:/Day 30:"). The last row is the punchline; highlight its key words. headline: empty, or a short setup like "Every sprint:". Keep each row under ~10 words.',
+  chat: 'lines: 3-6 messages "Role: message" between 2-3 roles (PM, QA, Dev, "The AI"...), like a real Slack thread: short, lowercase is fine, "..." allowed. The second role is the hero shown on the right; the last message is the zinger. headline: usually empty. kicker: optional context, e.g. "Release day", "#qa-team".',
+  diff: 'left_label: a file-like name (e.g. "TC-142 apply-discount.md", "sprint-habits.diff"). lines: 3-7 lines, "- " for removed, "+ " for added, no prefix for context, each max ~8 words: show the bad version being replaced by the good one. headline: the takeaway (max ~10 words).',
+  comparison: 'left_label and right_label: column titles (1-3 words; left is the old way, right is the product or the right way). lines: 3-5 rows formatted exactly "left | right", each side max ~6 words; the left side gets crossed out. headline: the verdict, not a topic title (e.g. "Fast is easy. *Right* is the product.", not "Two kinds of question").',
   remotion: "headline: the opening beat (max ~8 words). lines: 3-5 following beats, each max ~8 words, telling a mini story: problem → turn → payoff. The last beat can be the product url.",
   clip: "headline: title card shown for ~2 s before the clip plays (max ~8 words). The clip already shows its own on-screen headline (see the clip description): never repeat it; add context the clip does not say (who it is for, why it matters). lines: leave empty.",
   ai_image: "headline: one bold line shown over the illustration (max ~10 words).",
@@ -58,7 +59,10 @@ ${needsMedia ? `- The text must work together with the ${brief.format}, not repe
 
 # Copy that goes inside the ${brief.format} (media_copy)
 ${MEDIA_COPY_GUIDE[guideKey] ?? MEDIA_COPY_GUIDE.statement}
-Wrap 1-2 key words in *asterisks* to highlight them in brand color, and list them in highlight_words.` : "- This is a text-only post: omit alt_text and media_copy."}
+Wrap 1-2 key words in *asterisks* to highlight them (marker stroke) and list them in highlight_words; ~tildes~ cross words out.
+The image copy is short and punchy: written for someone scrolling, readable in two seconds. Same facts and claims rules
+as the tweet, but more attitude: irony, a jab at the old way, the joke the audience already makes. Never a topic label.
+kicker (optional): a 1-3 word sticker above the headline ("Hot take", "POV", "Unpopular opinion"); omit when it adds nothing.` : "- This is a text-only post: omit alt_text and media_copy."}
 ${previous ? `\n# Previous draft (rejected)\n${JSON.stringify(previous, null, 2)}` : ""}
 ${feedback.length ? `\n# Fix these issues\n${feedback.map((f) => `- ${f}`).join("\n")}` : ""}`;
 

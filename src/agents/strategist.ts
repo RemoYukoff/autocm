@@ -16,7 +16,13 @@ export interface StrategistInput {
 
 const KIND_GUIDE: Record<MediaKind, string> = {
   none: "text only. Best for sharp opinions, one-liners, questions, short stories.",
-  template: `branded image card rendered from HTML. template_id: statement (one bold line + support), comparison (two columns, rows "left | right"), stat (one big number), checklist (3-6 items), screenshot (product screenshot in a frame; set screen_id).`,
+  template: `branded image card rendered from HTML; set template_id and theme (dark or light). Cards:
+    poster: a hot take in huge type, one punchy claim (can cross out the wrong word). The most scroll-stopping card.
+    meme: classic text meme, "Who: line" rows ("Nobody:", "PM:", "Me at 6pm Friday:", "Expectation:/Reality:", "Day 1:/Day 30:"). For relatable pain and irony.
+    chat: a fake chat thread between roles (PM, QA, dev, the AI tool...), ends on a zinger. For situations everyone in the audience has lived.
+    diff: a git-style diff (- removed / + added lines) in a code window. For before/after, "what the fix really looks like", or rewriting a bad habit.
+    comparison: two columns, us vs them (the old way crossed out). For a sharp contrast with 3-5 rows.
+    statement: one bold line + support. stat: one big number. checklist: 3-6 items. screenshot: product screenshot in a frame (set screen_id).`,
   ai_image: "AI-generated illustration with the headline on top. Set visual_direction. Use sparingly; abstract/conceptual visuals only, never fake product UI.",
   remotion: "short kinetic-typography video (6-15 s) built from a headline and 3-5 beats. Great for a mini narrative: problem → turn → payoff.",
   clip: "a real product clip from the available list with an animated caption. Set clip_id. Best for showing the product working.",
@@ -57,9 +63,14 @@ ${avoid.length ? `\n# Angles already rejected — pick a clearly different idea\
 2. Pick an angle that is NOT a repeat of any recent post (same idea with different words counts as a repeat).
 3. Choose the format the idea deserves, nudged by the format deficit; avoid the same format 3 times in a row.
    A text post must stand alone; choose image/video only when the visual adds something the text can't.
+   An image must stop the scroll: a meme, a hot take, a chat or diff people screenshot and share, not a slide.
+   Never reuse the template_id of the last image post; rotate through the cards (history shows [image/template/<id>/<theme>])
+   and alternate theme. Prefer poster, meme, chat and diff over statement and checklist.
+   The voice rules set the facts and register of the tweet; the image is the place for attitude: irony, a jab at the
+   old way of working, an inside joke for the audience. visual_direction describes the joke or the punch, never "plain" or "dry".
 4. include_link: ${linkAllowed ? "true only if the post is a direct invitation to try the product" : "must be false (link quota reached)"}.
 5. The post must be in ${product.config.language}. Write for the audience, not for the founder.
-6. Template ids: ${TemplateId.options.join(", ")}. Set template_id only for media_kind template.`;
+6. Template ids: ${TemplateId.options.join(", ")}. Set template_id and theme only for media_kind template.`;
 
   const brief = await callJson(schema, prompt, { stage: "strategist", model: "sonnet", postId: input.postId });
   return normalizeBrief(brief, caps, product, linkAllowed);
@@ -76,7 +87,11 @@ export function normalizeBrief(brief: Brief, caps: Capabilities, product: Produc
     b.screen_id = product.config.assets.screens[0]?.id;
     if (!b.screen_id) b.template_id = "statement";
   }
-  if (b.media_kind !== "template") delete b.template_id;
+  if (b.media_kind === "template" && !b.theme) b.theme = "dark";
+  if (b.media_kind !== "template") {
+    delete b.template_id;
+    delete b.theme;
+  }
   if (b.media_kind !== "clip") delete b.clip_id;
   b.format = KIND_FORMAT[b.media_kind];
   if (!linkAllowed) b.include_link = false;

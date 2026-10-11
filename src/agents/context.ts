@@ -69,6 +69,17 @@ export function historyStats(product: Product, history: PostRow[], now = Date.no
   };
 }
 
+/** "/meme/light" for template posts, so the strategist can see which cards it already used. */
+function cardOf(p: PostRow): string {
+  if (p.media_kind !== "template" || !p.brief_json) return "";
+  try {
+    const b = JSON.parse(p.brief_json) as { template_id?: string; theme?: string };
+    return [b.template_id, b.theme].filter(Boolean).map((x) => `/${x}`).join("");
+  } catch {
+    return "";
+  }
+}
+
 export function historyContext(history: PostRow[], limit = 30): string {
   if (!history.length) return "(no posts yet — this is the first one)";
   return history
@@ -76,7 +87,7 @@ export function historyContext(history: PostRow[], limit = 30): string {
     .map((p) => {
       const when = (p.published_at ?? p.created_at).slice(0, 10);
       const text = (p.text ?? "").replace(/\s+/g, " ").slice(0, 160);
-      return `- ${when} [${p.format}/${p.media_kind}] pillar=${p.pillar} angle="${p.angle}" text="${text}"`;
+      return `- ${when} [${p.format}/${p.media_kind}${cardOf(p)}] pillar=${p.pillar} angle="${p.angle}" text="${text}"`;
     })
     .join("\n");
 }

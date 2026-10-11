@@ -113,11 +113,11 @@ main { padding: 8px max(20px, calc((100vw - 1240px) / 2)) 60px; }
 .no-accounts { padding: 56px 0; text-align: center; }
 .no-accounts .lede { margin: 8px auto 20px; max-width: 46ch; }
 
-/* Up next: a real timeline. Left rail = when, middle = the post as X will show it, right = status and Discard. */
+/* Up next: a real timeline. Left rail = when, middle = the post as X will show it, Discard sits under the time. */
 .timeline { list-style: none; margin: 0; padding: 0; }
 .slot {
   display: grid;
-  grid-template-columns: 150px minmax(0, 560px) minmax(240px, 1fr);
+  grid-template-columns: 150px minmax(0, 600px);
   gap: 28px;
   padding: 22px 0 30px;
   border-top: 1px solid var(--line-soft);
@@ -152,12 +152,11 @@ main { padding: 8px max(20px, calc((100vw - 1240px) / 2)) 60px; }
 .when-local { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .when-count { margin-top: 10px; font-size: 13px; font-weight: 550; font-variant-numeric: tabular-nums; color: var(--ink); }
 .soon .when-count { color: var(--warn); }
+.when .btn-sm { margin-top: 12px; }
+.btn-sm { padding: 4px 12px; font-size: 13px; }
 
-.slot-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.slot-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .warn { margin: 0; font-size: 13px; padding: 8px 12px; border-radius: 8px; max-width: 60ch; }
 .warn { color: #ffd7d5; background: rgb(240 98 93 / 0.1); border: 1px solid rgb(240 98 93 / 0.25); }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
 
 .placeholder {
   border: 1px dashed var(--line);
@@ -380,16 +379,15 @@ img.tw-avatar { object-fit: cover; background: var(--raise); }
 
 @media (max-width: 1080px) {
   .slot { grid-template-columns: 130px minmax(0, 1fr); }
-  .slot .slot-side { grid-column: 2; }
   .tw, .placeholder { max-width: 600px; }
 }
 @media (max-width: 640px) {
   .top { position: static; }
   .slot { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .slot .slot-side { grid-column: 1; }
   .when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
   .when::after { display: none; }
   .when-count { margin-top: 0; }
+  .when .btn-sm { margin: 0 0 0 auto; align-self: center; }
   .top-row { gap: 10px 12px; }
   .acct-btn { max-width: calc(100vw - 150px); }
   .status { order: 3; flex-basis: 100%; }
