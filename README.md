@@ -38,7 +38,7 @@ Images, video and music are generated on **ElevenLabs** through its MCP server (
 the OAuth login of the user-scope `elevenlabs` MCP in Claude Code (no API key in `.env`). Log in once from Claude
 Code (`/mcp`, elevenlabs, authenticate); if the login expires, generations fail with that error until you log in
 again. A small agent runs a fixed recipe while the code pins model and parameters and allows one charged generation
-per job. Rough cost on the Creator plan: an image ~190 credits, a music track a few hundred, a Veo clip ~7k+.
+per job. Measured cost: a 2K image ~470 credits, a 15 s music track ~410, an 8 s 1080p Veo clip ~7,270.
 Per post the designer may make 2 images; the editor 4 images, 2 clips and 1 music track.
 
 ## Quick start

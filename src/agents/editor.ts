@@ -185,7 +185,7 @@ export async function editVideo(input: EditInput): Promise<MediaResult> {
       images: hasReference ? [reference] : [],
       tools: [preview, ...generationTools(bag, LIMITS)],
       maxTurns: (MAX_PREVIEWS + LIMITS.images + LIMITS.clips + LIMITS.music) * 2 + 6,
-      timeoutMs: 60 * 60_000,
+      timeoutMs: 30 * 60_000,
       attempts: 1,
       system:
         "You are a senior motion designer working inside an automated content pipeline. You build videos as timelines of " +
