@@ -253,7 +253,7 @@ function renderHeader(d) {
     ? `<button type="button" class="pill pill-stop pill-btn" data-open-accounts title="Reconnect from the account menu">X session problem</button>`
     : "";
   const paused = p.paused
-    ? `<span class="pill pill-stop">Paused</span><span class="muted small" title="${esc(p.paused)}">${esc(p.paused)}</span>`
+    ? `<span class="pill pill-stop">Paused</span>`
     : `<span class="pill pill-go">Publishing on</span>`;
   const running = d.upcoming.filter((s) => s.status === "claimed").length;
   $("#status").innerHTML = `${mode}${paused}${running ? `<span class="pill pill-busy"><span class="spinner sm" aria-hidden="true"></span>${running} writing</span>` : ""}`;
@@ -372,11 +372,9 @@ $("#pause-btn").addEventListener("click", () => {
   if (!p) return;
   const base = `/api/accounts/${encodeURIComponent(p.slug)}`;
   if ($("#pause-btn").dataset.paused === "1") {
-    run("pause", () => api("POST", `${base}/resume`), (r) => (r.paused ? `Still paused: ${r.paused}` : `Publishing resumed for ${p.name}.`));
+    run("pause", () => api("POST", `${base}/resume`), `Publishing resumed for ${p.name}.`);
   } else {
-    const reason = prompt(`Pause publishing for ${p.name}. Reason (optional):`, "");
-    if (reason === null) return;
-    run("pause", () => api("POST", `${base}/pause`, { reason }), `Publishing paused for ${p.name}.`);
+    run("pause", () => api("POST", `${base}/pause`), `Publishing paused for ${p.name}.`);
   }
 });
 

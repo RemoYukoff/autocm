@@ -3,7 +3,7 @@ import twitterText from "twitter-text";
 import { getDb } from "../core/db/index.ts";
 import { env } from "../core/env.ts";
 import type { GuardResult, PostRow, PostStatus, Product } from "../core/types.ts";
-import { pausedReason } from "./pause.ts";
+import { isPaused } from "./pause.ts";
 import { findDuplicate } from "./text.ts";
 import { dayRangeUtc } from "./time.ts";
 
@@ -55,8 +55,7 @@ export function checkGuards(product: Product, text: string): GuardResult {
   const now = new Date();
 
   // (a) kill switch
-  const paused = pausedReason(slug);
-  if (paused) return { ok: false, reason: `paused: ${paused}` };
+  if (isPaused(slug)) return { ok: false, reason: "paused" };
 
   // (b) product enabled
   if (!c.enabled) return { ok: false, reason: `product ${slug} is disabled` };

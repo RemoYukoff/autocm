@@ -110,7 +110,7 @@ the login, headless afterwards, with the same user agent in both so X sees one b
 
 ## Safety rails
 
-- Kill switch per account: Pause/Resume in the dashboard, or `pnpm autocm pause <product> [reason]` / `resume <product>`.
+- Kill switch per account: Pause/Resume in the dashboard, or `pnpm autocm pause <product>` / `resume <product>`.
 - Per-product `daily_cap`, global `AUTOCM_GLOBAL_DAILY_CAP`, `min_gap_min` between posts.
 - Exact and near-duplicate check right before publishing.
 - An account auto-pauses after 3 consecutive publish failures or when its X session is logged out or locked.

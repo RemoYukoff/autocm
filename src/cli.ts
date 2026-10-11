@@ -6,7 +6,7 @@ import { env } from "./core/env.ts";
 import { log } from "./core/log.ts";
 import { renderFixture } from "./media/index.ts";
 import { xWhoami } from "./publish/index.ts";
-import { pause, pausedReason, resume } from "./safety/pause.ts";
+import { isPaused, pause, resume } from "./safety/pause.ts";
 import { planSlots, runDaemon, tick } from "./scheduler/index.ts";
 import { DEFAULT_PORT, startDashboard } from "./dashboard/server.ts";
 import { currentTick } from "./scheduler/tick.ts";
@@ -104,8 +104,8 @@ program
     });
   });
 
-program.command("pause <product> [reason...]").description("Stop publishing for one account").action((slug: string, reason: string[] = []) => {
-  pause(loadProduct(slug).config.slug, reason.join(" ") || "manual");
+program.command("pause <product>").description("Stop publishing for one account").action((slug: string) => {
+  pause(loadProduct(slug).config.slug);
   console.log(`${slug} paused`);
 });
 program.command("resume <product>").description("Resume publishing for one account").action((slug: string) => {
@@ -134,7 +134,7 @@ x.command("whoami <product>").description("Profile of the product's logged-in X 
 });
 program.command("status").description("LLM mode and each account's pause state").action(() => {
   console.log(`llm=${env.llm}`);
-  for (const slug of listProductSlugs()) console.log(`${slug} paused=${pausedReason(slug) ?? "no"}`);
+  for (const slug of listProductSlugs()) console.log(`${slug} paused=${isPaused(slug) ? "yes" : "no"}`);
 });
 
 program.parseAsync().catch((e: Error) => {

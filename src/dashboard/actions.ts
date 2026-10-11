@@ -3,7 +3,7 @@
 // and a double click finds the post already rejected and is refused.
 import { getDb, getPost, logEvent, nowIso } from "../core/db/index.ts";
 import type { PostRow } from "../core/types.ts";
-import { pause, pausedReason, resume } from "../safety/pause.ts";
+import { isPaused, pause, resume } from "../safety/pause.ts";
 import type { SlotRow } from "../scheduler/index.ts";
 import { getSlot, slotOfPost } from "./queries.ts";
 
@@ -63,12 +63,12 @@ export function discardPost(postId: number): { post: PostRow; slot: SlotRow | nu
   return { post: getPost(postId)!, slot: slot ? (getSlot(slot.id) ?? null) : null };
 }
 
-export function pausePublishing(product: string, reason?: string): string | null {
-  pause(product, reason?.trim() || "paused from dashboard");
-  return pausedReason(product);
+export function pausePublishing(product: string): boolean {
+  pause(product);
+  return isPaused(product);
 }
 
-export function resumePublishing(product: string): string | null {
+export function resumePublishing(product: string): boolean {
   resume(product);
-  return pausedReason(product);
+  return isPaused(product);
 }

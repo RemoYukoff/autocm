@@ -223,12 +223,11 @@ export function createApp(): Hono {
       return fail(c, e);
     }
   });
-  app.post("/api/accounts/:slug/pause", async (c) => {
+  app.post("/api/accounts/:slug/pause", (c) => {
     try {
       const slug = slugParam(c);
       requireAccount(slug);
-      const b = await body(c);
-      return c.json({ paused: pausePublishing(slug, typeof b.reason === "string" ? b.reason : undefined) });
+      return c.json({ paused: pausePublishing(slug) });
     } catch (e) {
       return fail(c, e);
     }
