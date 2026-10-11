@@ -61,6 +61,13 @@ export function createAccounts(ctx) {
     return `<span class="acct-sub">@${esc(p.x.handle)}</span>`;
   }
 
+  const PAUSE_MARK = `<span class="pause-mark" aria-hidden="true"><i></i><i></i></span>`;
+
+  /** A paused account: a yellow line under the name, on top of whatever else the row says. */
+  function pausedLine(p) {
+    return p.paused ? `<span class="acct-paused">${PAUSE_MARK}Paused · not publishing</span>` : "";
+  }
+
   const ADD_ITEM = `<span class="av av-plus" aria-hidden="true">+</span><span class="acct-text"><span class="acct-name">Add account</span><span class="acct-sub">Log in to an X account</span></span>`;
 
   function addingHtml(job) {
@@ -97,12 +104,13 @@ export function createAccounts(ctx) {
       .map((p) => {
         const tools = [];
         if (!jobFor(p.slug)) {
+          if (p.paused) tools.push(`<button type="button" class="mini mini-resume" data-acct-resume="${esc(p.slug)}" aria-label="Resume publishing for ${esc(p.name)}">Resume</button>`);
           if (!p.invalid && (!p.x || p.x.error)) tools.push(`<button type="button" class="mini mini-warn" data-acct-reconnect="${esc(p.slug)}">Reconnect</button>`);
           tools.push(`<button type="button" class="mini" data-acct-delete="${esc(p.slug)}" aria-label="Delete ${esc(p.name)}">Delete</button>`);
         }
-        return `<div class="acct-row${p.enabled || p.setup === "website" ? "" : " off"}">
+        return `<div class="acct-row${p.enabled || p.setup === "website" ? "" : " off"}${p.paused ? " paused" : ""}">
           <button type="button" class="acct-item" role="menuitemradio" aria-checked="${p.slug === state.selected}" data-acct-select="${esc(p.slug)}">
-            ${avatarHtml(p)}<span class="acct-text"><span class="acct-name">${esc(p.name)}${p.paused ? `<span class="acct-paused"><span class="pause-mark" aria-hidden="true"><i></i><i></i></span>Paused</span>` : ""}</span>${subline(p)}</span>
+            ${avatarHtml(p)}<span class="acct-text"><span class="acct-name">${esc(p.name)}</span>${pausedLine(p)}${subline(p)}</span>
           </button>
           <div class="acct-tools">${tools.join("")}</div>
         </div>`;
@@ -144,9 +152,11 @@ export function createAccounts(ctx) {
     const sel = ev.target.closest("[data-acct-select]");
     const del = ev.target.closest("[data-acct-delete]");
     const rec = ev.target.closest("[data-acct-reconnect]");
+    const res = ev.target.closest("[data-acct-resume]");
     if (sel) return select(sel.dataset.acctSelect);
     closeMenu();
-    if (del) remove(del.dataset.acctDelete);
+    if (res) resume(res.dataset.acctResume);
+    else if (del) remove(del.dataset.acctDelete);
     else if (rec) reconnect(rec.dataset.acctReconnect);
     else if (ev.target.closest("[data-acct-add]")) add();
   });
@@ -170,6 +180,17 @@ export function createAccounts(ctx) {
     try {
       await api("POST", `/api/accounts/${encodeURIComponent(slug)}/reconnect`);
       toast(`Log in as @${p?.handle ?? slug} in the window that opened.`, "ok");
+    } catch (e) {
+      toast(e.message, "error");
+    }
+    await refresh();
+  }
+
+  async function resume(slug) {
+    const p = products().find((x) => x.slug === slug);
+    try {
+      await api("POST", `/api/accounts/${encodeURIComponent(slug)}/resume`);
+      toast(`Publishing resumed for ${p?.name ?? slug}.`, "ok");
     } catch (e) {
       toast(e.message, "error");
     }

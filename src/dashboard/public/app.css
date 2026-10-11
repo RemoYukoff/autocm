@@ -281,8 +281,14 @@ button.when-time:hover, button.when-time:focus-visible { border-bottom-color: va
 .acct-btn.paused:hover { border-color: var(--warn); }
 .pause-mark { display: inline-flex; gap: 2px; flex: none; vertical-align: -1px; margin-right: 3px; }
 .pause-mark i { width: 3px; height: 10px; border-radius: 1px; background: var(--warn); }
-.acct-paused { margin-left: 8px; color: var(--warn); font-size: 12px; font-weight: 550; }
-.acct-paused .pause-mark i { width: 2.5px; height: 8px; }
+.acct-paused { display: flex; align-items: center; gap: 6px; color: var(--warn); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acct-paused .pause-mark { margin: 0; }
+.acct-paused .pause-mark i { width: 2.5px; height: 9px; }
+/* A paused account in the menu: yellow tint and a yellow bar on the left. */
+.acct-row.paused { background: rgb(242 181 68 / 0.09); box-shadow: inset 3px 0 0 var(--warn); }
+.acct-row.paused:hover { background: rgb(242 181 68 / 0.14); }
+.mini.mini-resume { color: var(--warn); border-color: rgb(242 181 68 / 0.55); }
+.mini.mini-resume:hover { color: #1a1408; background: var(--warn); border-color: var(--warn); }
 .acct-label { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .acct-btn .acct-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-handle { color: var(--muted); font-weight: 450; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -311,7 +317,7 @@ img.av { background: var(--raise); }
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  width: min(380px, calc(100vw - 32px));
+  width: min(440px, calc(100vw - 32px));
   max-height: min(70vh, 560px);
   overflow-y: auto;
   background: var(--surface);
@@ -410,7 +416,9 @@ img.tw-avatar { object-fit: cover; background: var(--raise); }
   .tw, .placeholder { max-width: 600px; }
 }
 @media (max-width: 640px) {
-  .top { position: static; }
+  .top { position: relative; } /* not sticky on phones, but keeps its z-index so the menu stays above the posts */
+  .acct-row { flex-wrap: wrap; }
+  .acct-tools { width: 100%; justify-content: flex-end; padding: 0 8px 8px; }
   .slot { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
   .when::after { display: none; }
