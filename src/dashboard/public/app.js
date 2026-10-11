@@ -119,6 +119,21 @@ function ask({ title, body = "", ok = "OK", danger = false }) {
   return new Promise((resolve) => d.addEventListener("close", () => resolve(d.returnValue === "ok"), { once: true }));
 }
 
+// ---------- lightbox: an image shown large over a dimmed page; a click outside it (or Escape) closes ----------
+
+document.addEventListener("click", (ev) => {
+  const open = ev.target.closest("[data-lightbox]");
+  if (!open) return;
+  const img = $("#lightbox-img");
+  img.src = open.dataset.lightbox;
+  img.alt = open.querySelector("img")?.alt ?? "";
+  $("#lightbox").showModal();
+});
+$("#lightbox").addEventListener("click", (ev) => {
+  if (ev.target !== $("#lightbox-img")) $("#lightbox").close();
+});
+$("#lightbox").addEventListener("close", () => $("#lightbox-img").removeAttribute("src"));
+
 $("#confirm").addEventListener("click", (ev) => {
   if (ev.target === ev.currentTarget) ev.currentTarget.close(); // the backdrop
 });
@@ -139,7 +154,7 @@ function mediaHtml(post) {
       if (m.mime.startsWith("video/")) {
         return `<video class="tw-media" controls preload="metadata" playsinline style="aspect-ratio:${ratio}" ${m.poster ? `poster="${esc(m.poster)}"` : ""} src="${esc(m.url)}" aria-label="${esc(post.alt_text || "video")}"></video>`;
       }
-      return `<a href="${esc(m.url)}" target="_blank" rel="noopener"><img class="tw-media" loading="lazy" style="aspect-ratio:${ratio}" src="${esc(m.url)}" alt="${esc(post.alt_text || "")}"></a>`;
+      return `<button type="button" class="tw-media-open" data-lightbox="${esc(m.url)}" aria-label="View image larger"><img class="tw-media" loading="lazy" style="aspect-ratio:${ratio}" src="${esc(m.url)}" alt="${esc(post.alt_text || "")}"></button>`;
     })
     .join("");
   return `<div class="tw-media-wrap">${items}</div>`;

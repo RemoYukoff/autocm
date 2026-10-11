@@ -238,7 +238,27 @@ button.when-time:hover, button.when-time:focus-visible { border-bottom-color: va
 .tw-text a, .tw-link { color: var(--x-blue); }
 .tw-empty { color: #71767b; }
 .tw-media-wrap { margin-top: 12px; border-radius: 16px; overflow: hidden; border: 1px solid #2f3336; background: #000; }
-.tw-media-wrap a { display: block; }
+.tw-media-open { all: unset; display: block; width: 100%; cursor: zoom-in; }
+.tw-media-open:focus-visible { outline: 2px solid var(--busy); outline-offset: -2px; }
+
+/* Lightbox: the whole viewport is the dialog, so any click outside the image lands on it and closes. */
+.lightbox {
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 24px;
+  box-sizing: border-box;
+  border: 0;
+  background: transparent;
+  display: none;
+  place-items: center;
+  cursor: zoom-out;
+}
+.lightbox[open] { display: grid; animation: confirm-in 0.14s ease-out; }
+.lightbox::backdrop { background: rgb(4 5 6 / 0.88); }
+.lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; cursor: default; box-shadow: 0 24px 80px rgb(0 0 0 / 0.6); }
 .tw-media { display: block; width: 100%; height: auto; max-height: min(520px, 70vh); object-fit: contain; background: #000; }
 
 /* ---------- toasts ---------- */
