@@ -238,11 +238,12 @@ export function createApp(): Hono {
       return fail(c, e);
     }
   });
-  app.post("/api/accounts/:slug/generate", (c) => {
+  app.post("/api/accounts/:slug/generate", async (c) => {
     try {
       const slug = slugParam(c);
       requireAccount(slug);
-      return c.json({ slot: generateSlot(slug) }, 201);
+      const b = await body(c);
+      return c.json({ slot: generateSlot(slug, b.date, b.format) }, 201);
     } catch (e) {
       return fail(c, e);
     }

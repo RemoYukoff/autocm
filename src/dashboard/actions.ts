@@ -8,13 +8,13 @@ import { getDb, getPost, logEvent, type Discarded } from "../core/db/index.ts";
 import { track } from "../core/inflight.ts";
 import { log } from "../core/log.ts";
 import { postOutDir } from "../core/paths.ts";
-import type { PostRow } from "../core/types.ts";
+import { Format, type PostRow } from "../core/types.ts";
 import { isPaused, pause, resume } from "../safety/pause.ts";
 import { zonedToUtc } from "../safety/time.ts";
 import { tick, type SlotRow } from "../scheduler/index.ts";
-import { addSlot } from "../scheduler/plan.ts";
+import { addSlot, MIN_SCHEDULE_LEAD_MIN } from "../scheduler/plan.ts";
 import { currentTick } from "../scheduler/tick.ts";
-import { getSlot, slotOfPost } from "./queries.ts";
+import { DATE_RE, getSlot, slotOfPost } from "./queries.ts";
 
 export class ActionError extends Error {
   readonly status: 400 | 404 | 409;
@@ -75,11 +75,20 @@ function readyProduct(slug: string) {
   }
 }
 
-/** Add one post to the account: a new slot at a free time; the scheduler writes it right away. */
-export function generateSlot(slug: string): SlotRow {
+/** Add one post to the account on local day `date` ("YYYY-MM-DD"): a new slot at a free time that day; the scheduler
+ * writes it right away. `format` (text|image|video) fixes what kind of post it is; without it the marketer picks. */
+export function generateSlot(slug: string, date: unknown, format: unknown): SlotRow {
+  const f = format == null ? null : Format.safeParse(format).data;
+  if (f === undefined) throw new ActionError(400, `format must be one of ${Format.options.join(", ")}`);
+  if (typeof date !== "string" || !DATE_RE.test(date)) throw new ActionError(400, "date must look like 2026-10-11");
   const product = readyProduct(slug);
-  const added = addSlot(product);
-  if (!added) throw new ActionError(409, "no free time in the next 7 days (posting windows, daily cap and gap between posts are full)");
+  const { cadence } = product.config;
+  const added = addSlot(product, f, date);
+  if (added === "past") throw new ActionError(409, "that day is over; pick today or a later day");
+  if (added === "cap") throw new ActionError(409, `that day already has ${cadence.daily_cap} posts (the daily cap)`);
+  if (added === "room") {
+    throw new ActionError(409, `no free time left that day: posts go out in ${cadence.windows.join(", ")}, ${cadence.min_gap_min} min apart, from ${MIN_SCHEDULE_LEAD_MIN} min from now`);
+  }
   kickTick();
   return getSlot(added.id)!;
 }

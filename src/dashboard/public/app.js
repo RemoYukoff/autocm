@@ -257,7 +257,7 @@ function slotHtml(slot) {
   let body;
   if (slot.status === "pending" || slot.status === "claimed") {
     const since = slot.status === "claimed" ? slot.claimed_at : null;
-    body = `<div class="placeholder writing"><span class="spinner" aria-hidden="true"></span><p>Generating…${since ? ` <span class="muted" data-since="${esc(since)}"></span>` : ""}</p></div>`;
+    body = `<div class="placeholder writing"><span class="spinner" aria-hidden="true"></span><p>Generating${slot.format ? ` ${esc(slot.format)}` : ""}…${since ? ` <span class="muted" data-since="${esc(since)}"></span>` : ""}</p></div>`;
   } else if (post) {
     body = tweetCard(post, fmtTime(slot.scheduled_at, p.timezone, false));
   } else {
@@ -330,10 +330,13 @@ function renderHeader(d) {
   const p = readyAccount();
   const pb = $("#pause-btn");
   pb.hidden = !p;
-  const gb = $("#gen-btn");
-  gb.hidden = !p;
-  gb.disabled = state.busy.has("generate");
-  gb.textContent = gb.disabled ? "Adding…" : "+ Generate post";
+  // Generate adds a post on the day shown, so it only exists for today and later days.
+  const gen = p && d?.today && (state.day ?? d.today) >= d.today;
+  $("#gen").hidden = !gen;
+  const adding = state.busy.has("generate");
+  $("#gen-btn").disabled = $("#gen-more").disabled = adding;
+  $("#gen-btn").textContent = adding ? "Adding…" : "+ Generate post";
+  if (!gen || adding) closeGenMenu();
   if (!p) {
     $("#status").innerHTML = "";
     return;
@@ -612,14 +615,44 @@ document.addEventListener("keydown", (ev) => {
   }
 });
 
-$("#gen-btn").addEventListener("click", () => {
+/** Add a post on the day shown, written now. Without a format the marketer picks text, image or video, as for scheduled posts. */
+function generate(format) {
   const p = readyAccount();
-  if (!p) return;
+  if (!p || !state.data?.today) return;
+  closeGenMenu();
+  const date = state.day ?? state.data.today;
   run(
     "generate",
-    () => api("POST", `/api/accounts/${encodeURIComponent(p.slug)}/generate`),
-    (r) => `New post for ${fmtTime(r.slot.scheduled_at, p.timezone)}. Writing it now.`,
+    () => api("POST", `/api/accounts/${encodeURIComponent(p.slug)}/generate`, format ? { date, format } : { date }),
+    (r) => `New ${format ? `${format} ` : ""}post for ${fmtTime(r.slot.scheduled_at, p.timezone)}. Writing it now.`,
   );
+}
+
+function closeGenMenu() {
+  $("#gen-menu").hidden = true;
+  $("#gen-more").setAttribute("aria-expanded", "false");
+}
+
+$("#gen-btn").addEventListener("click", () => generate());
+$("#gen-more").addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  if (!$("#gen-menu").hidden) return closeGenMenu();
+  $("#gen-menu").hidden = false;
+  $("#gen-more").setAttribute("aria-expanded", "true");
+  $("#gen-menu .gen-item").focus();
+});
+$("#gen-menu").addEventListener("click", (ev) => {
+  const item = ev.target.closest("[data-gen-format]");
+  if (item) generate(item.dataset.genFormat);
+});
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest("#gen")) closeGenMenu();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && !$("#gen-menu").hidden) {
+    closeGenMenu();
+    $("#gen-more").focus();
+  }
 });
 
 $("#pause-btn").addEventListener("click", () => {

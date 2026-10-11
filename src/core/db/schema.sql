@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS slots (
   status       TEXT NOT NULL DEFAULT 'pending',
   post_id      INTEGER,
   claimed_at   TEXT,
+  format       TEXT,  -- text|image|video asked for from the dashboard; NULL: the marketer picks
   UNIQUE(product, scheduled_at)
 );
 

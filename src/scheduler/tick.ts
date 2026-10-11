@@ -2,7 +2,7 @@
 import { loadProduct } from "../core/config.ts";
 import { getDb, getPost, logEvent, nowIso, updatePost } from "../core/db/index.ts";
 import { log } from "../core/log.ts";
-import type { PostRow } from "../core/types.ts";
+import type { Format, PostRow } from "../core/types.ts";
 import { generatePost } from "../pipeline.ts";
 import { GuardError, publishPost } from "../publish/index.ts";
 import { acquireTickLock, heartbeatTickLock, releaseTickLock } from "./lock.ts";
@@ -16,6 +16,8 @@ export interface SlotRow {
   status: SlotStatus;
   post_id: number | null;
   claimed_at: string | null;
+  /** The format the owner asked for from the dashboard; null: the marketer picks. */
+  format: Format | null;
 }
 
 const MIN = 60_000;
@@ -114,7 +116,7 @@ async function generateDue(token: string): Promise<void> {
     slotEvent("slot_claimed", slot);
 
     try {
-      const post = await generatePost(slot.product, { slotId: slot.id });
+      const post = await generatePost(slot.product, { slotId: slot.id, format: slot.format ?? undefined });
       if (post.slot_id == null) updatePost(post.id, { slot_id: slot.id });
       if (post.status === "approved") {
         setSlot(slot.id, "generated", post.id);

@@ -41,7 +41,8 @@ Remotion 4, ffmpeg/ffprobe (system), node-cron, pino.
   The dashboard shows one account at a time (remembered, else the first), one day at a time (default today; a day strip,
   newest left, covers planned days and the past week, a calendar the older days with posts): every post of that day,
   published ones linked to X. Unpublished posts have Discard (deletes the post, its slot and files outright),
-  an editable time, "+ Generate post" (adds a slot at a free time and kicks a tick so it is written now)
+  an editable time, "+ Generate post" (floating, bottom center; adds a slot at a free time of the day shown, today or later, and kicks a tick so it is written now;
+  its arrow fixes the format text|image|video in `slots.format`, else the marketer picks)
   and that account's Pause/Resume. Pause is per account (flag `paused:<slug>`) and only stops publishing:
   posts are still written. There is no global pause.
 - The app runs always-on as systemd user service `autocm` (`deploy/autocm.service`, symlinked) with `run --dashboard --watch`

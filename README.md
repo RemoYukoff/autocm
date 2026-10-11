@@ -88,8 +88,8 @@ pnpm autocm dashboard           # dashboard only, http://127.0.0.1:4321
 Shows only what the bot is about to publish: each planned slot with an X-style preview of its post (text, image
 or video). Every day the scheduler picks how many posts to make (`cadence.posts_per_day_min` to `posts_per_day_max`)
 and when, and writes them right away, so they are visible hours before they go out. The actions are discard
-(veto), changing a post's time (click the time), **+ Generate post** (one more post at a free time in the posting
-windows, under the daily cap; written right away) and pause/resume of the shown account. Without a veto, posts publish on schedule.
+(veto), changing a post's time (click the time), **+ Generate post** (one more post on the day shown, at a free time in the posting
+windows, under the daily cap; written right away; floating at the bottom, its arrow fixes text, image or video, else the marketer picks) and pause/resume of the shown account. Without a veto, posts publish on schedule.
 Each post shows its goal and play (the angle on hover) and, once published, the views, likes, replies, reposts and
 bookmarks read back from X. A discarded post is remembered as a veto: the marketer stays away from that idea.
 

@@ -9,12 +9,14 @@ import { loadProduct } from "./core/config.ts";
 import { getPost, insertPost, logEvent, recentPosts, updatePost } from "./core/db/index.ts";
 import { log } from "./core/log.ts";
 import { postOutDir } from "./core/paths.ts";
-import type { Brief, MediaResult, PostRow } from "./core/types.ts";
+import type { Brief, Format, MediaResult, PostRow } from "./core/types.ts";
 import { produceMedia } from "./media/index.ts";
 import { textHash } from "./safety/text.ts";
 
 export interface GenerateOptions {
   slotId?: number;
+  /** Format the owner asked for; without it the marketer picks. */
+  format?: Format;
 }
 
 /** Copy rewrites when the tweet does not fit in 280 weighted chars. */
@@ -40,7 +42,7 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
 
     const newBrief = async (): Promise<Brief> => {
       for (let i = 0; ; i++) {
-        const b = await planBrief({ product, history, avoid, postId });
+        const b = await planBrief({ product, history, avoid, postId, format: opts.format });
         const dup = await checkDuplicate(product, b, history, postId);
         if (!dup.duplicate || i >= MAX_DEDUPE_RETRIES) {
           if (dup.duplicate) plog.warn({ angle: b.angle }, "still duplicate after retries; keeping the last idea");

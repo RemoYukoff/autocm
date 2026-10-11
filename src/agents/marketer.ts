@@ -2,7 +2,7 @@
 // It sees the product, the posting history with the results X reported, and the ideas the owner vetoed.
 import { z } from "zod";
 import { discardedPosts } from "../core/db/index.ts";
-import type { PostRow, Product } from "../core/types.ts";
+import type { Format, PostRow, Product } from "../core/types.ts";
 import { Brief, Goal, KIND_FORMAT, MediaKind, Play } from "../core/types.ts";
 import { callJson } from "../llm.ts";
 import { historyContext, historyStats, productContext, resultsContext, statsContext, vetoContext } from "./context.ts";
@@ -14,6 +14,8 @@ export interface MarketerInput {
   /** Angles rejected as duplicates; the marketer must pick something different. */
   avoid?: string[];
   postId?: number;
+  /** Format the owner asked for from the dashboard; without it the marketer picks. */
+  format?: Format;
 }
 
 const KIND_GUIDE: Record<MediaKind, string> = {
@@ -31,14 +33,19 @@ const KIND_GUIDE: Record<MediaKind, string> = {
 };
 
 export async function planBrief(input: MarketerInput): Promise<Brief> {
-  const { product, history, avoid = [] } = input;
+  const { product, history, avoid = [], format } = input;
   const c = product.config;
   const pillarIds = c.pillars.map((p) => p.id) as [string, ...string[]];
   const stats = historyStats(product, history);
   const linkAllowed = stats.linkRatio < c.links.max_link_ratio;
 
+  const forced = format && MediaKind.options.find((k) => KIND_FORMAT[k] === format)!;
+  const kinds = (forced ? [forced] : MediaKind.options) as [MediaKind, ...MediaKind[]];
+
   const schema = Brief.extend({
     pillar: z.enum(pillarIds),
+    format: z.enum(kinds.map((k) => KIND_FORMAT[k]) as [Format, ...Format[]]),
+    media_kind: z.enum(kinds),
   }).refine((b) => b.media_kind === "none" || b.visual, "visual is required when media_kind is design or video");
 
   const prompt = `You are the head of marketing for ${c.name}, running its X (Twitter) account to grow an audience of
@@ -70,7 +77,7 @@ ${vetoContext(discardedPosts(c.slug))}
 ${statsContext(product, stats)}
 
 # Media kinds
-${MediaKind.options.map((k) => `- ${k} (format ${KIND_FORMAT[k]}): ${KIND_GUIDE[k]}`).join("\n")}
+${kinds.map((k) => `- ${k} (format ${KIND_FORMAT[k]}): ${KIND_GUIDE[k]}`).join("\n")}
 ${avoid.length ? `\n# Angles already rejected as repeats: pick a clearly different idea\n${avoid.map((a) => `- ${a}`).join("\n")}` : ""}
 
 # How to decide
@@ -84,8 +91,10 @@ ${avoid.length ? `\n# Angles already rejected as repeats: pick a clearly differe
    used; they may be made up as long as they claim nothing about the product, its users or real companies. Anything
    said about the product itself comes only from the knowledge base.
 4. Pillar: the one this angle belongs to; across posts, follow the pillar weights roughly.
-5. Format: the one the idea deserves, nudged by the format deficit; avoid the same format 3 times in a row. Text must
-   stand alone; choose an image or video only when it carries something the words can't.
+5. ${forced
+    ? `Format: the owner asked for ${format} (media_kind ${forced}). Pick the idea that is best told this way.`
+    : `Format: the one the idea deserves, nudged by the format deficit; avoid the same format 3 times in a row. Text must
+   stand alone; choose an image or video only when it carries something the words can't.`}
 6. For media_kind design, fill visual: the concept (what is on it, why someone stops and screenshots it), the exact
    words (as few as possible), and the aspect (portrait or square fill more of a phone screen; landscape suits wide
    scenes like diffs or side-by-sides). For media_kind video, visual.concept is the story beat by beat and words are
