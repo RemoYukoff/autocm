@@ -91,8 +91,7 @@ export function createAccounts(ctx) {
     btn.title = cur.paused ? "Publishing paused for this account" : "Choose the account to show";
     btn.setAttribute("aria-haspopup", "menu");
     btn.disabled = false;
-    const mark = cur.paused ? `<span class="pause-mark" aria-label="paused"><i></i><i></i></span>` : "";
-    btn.innerHTML = `${avatarHtml(cur)}<span class="acct-label"><span class="acct-name">${esc(cur.name)}</span>${cur.handle ? `<span class="acct-handle">@${esc(cur.handle)}</span>` : ""}</span>${mark}<span class="caret" aria-hidden="true"></span>`;
+    btn.innerHTML = `${avatarHtml(cur)}<span class="acct-label"><span class="acct-name">${esc(cur.name)}</span>${cur.handle ? `<span class="acct-handle">@${esc(cur.handle)}</span>` : ""}</span><span class="caret" aria-hidden="true"></span>`;
 
     const rows = list
       .map((p) => {
@@ -101,9 +100,9 @@ export function createAccounts(ctx) {
           if (!p.invalid && (!p.x || p.x.error)) tools.push(`<button type="button" class="mini mini-warn" data-acct-reconnect="${esc(p.slug)}">Reconnect</button>`);
           tools.push(`<button type="button" class="mini" data-acct-delete="${esc(p.slug)}" aria-label="Delete ${esc(p.name)}">Delete</button>`);
         }
-        return `<div class="acct-row${p.enabled || p.setup === "website" ? "" : " off"}${p.paused ? " paused" : ""}">
+        return `<div class="acct-row${p.enabled || p.setup === "website" ? "" : " off"}">
           <button type="button" class="acct-item" role="menuitemradio" aria-checked="${p.slug === state.selected}" data-acct-select="${esc(p.slug)}">
-            ${avatarHtml(p)}<span class="acct-text"><span class="acct-name">${esc(p.name)}</span>${subline(p)}</span>
+            ${avatarHtml(p)}<span class="acct-text"><span class="acct-name">${esc(p.name)}${p.paused ? `<span class="acct-paused"><span class="pause-mark" aria-hidden="true"><i></i><i></i></span>Paused</span>` : ""}</span>${subline(p)}</span>
           </button>
           <div class="acct-tools">${tools.join("")}</div>
         </div>`;

@@ -54,7 +54,7 @@ a:hover { text-decoration: underline; }
 .top-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
 .status .small { max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.btn.icon-btn { width: 38px; height: 38px; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.btn.icon-btn { width: 36px; height: 36px; box-sizing: border-box; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .icon-btn svg { flex: none; width: 15px; height: 15px; fill: currentColor; }
 /* Paused: the button shows Play, in the same yellow as the paused selector. */
 .btn.icon-btn.paused { color: var(--warn); border-color: rgb(242 181 68 / 0.7); background: rgb(242 181 68 / 0.07); }
@@ -279,9 +279,10 @@ button.when-time:hover, button.when-time:focus-visible { border-bottom-color: va
 /* A paused account: yellow ring on the selector and on its avatar in the menu. */
 .acct-btn.paused { border-color: rgb(242 181 68 / 0.7); background: rgb(242 181 68 / 0.07); }
 .acct-btn.paused:hover { border-color: var(--warn); }
-.pause-mark { display: inline-flex; gap: 2px; flex: none; }
+.pause-mark { display: inline-flex; gap: 2px; flex: none; vertical-align: -1px; margin-right: 3px; }
 .pause-mark i { width: 3px; height: 10px; border-radius: 1px; background: var(--warn); }
-.acct-row.paused .av { box-shadow: 0 0 0 2px var(--warn); }
+.acct-paused { margin-left: 8px; color: var(--warn); font-size: 12px; font-weight: 550; }
+.acct-paused .pause-mark i { width: 2.5px; height: 8px; }
 .acct-label { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .acct-btn .acct-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-handle { color: var(--muted); font-weight: 450; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
