@@ -239,11 +239,19 @@ function extract(): InPage {
     }
   };
   const inHeader = (el: Element) => !!el.closest("header, nav, [class*=header], [class*=navbar]");
+  // The home link in the header is the product's own mark. A "logo" class alone is not: integration strips and
+  // customer walls are lists of other companies' logos, so a hint only counts inside the header.
+  const logoScore = (el: Element) => {
+    const home = inHomeLink(el);
+    const header = inHeader(el);
+    if (!home && !(header && hinted(el))) return 0;
+    return (home ? 60 : 0) + (header ? 20 : 0) + (hinted(el) ? 20 : 0);
+  };
   for (const svg of document.querySelectorAll("svg")) {
     if (!visible(svg)) continue;
     const r = svg.getBoundingClientRect();
     if (r.width < 16 || r.height < 12) continue;
-    const score = (hinted(svg) ? 60 : 0) + (inHomeLink(svg) ? 40 : 0) + (inHeader(svg) ? 10 : 0);
+    const score = logoScore(svg);
     if (score < 40) continue;
     const clone = svg.cloneNode(true) as SVGElement;
     if (!clone.getAttribute("xmlns")) clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -254,8 +262,8 @@ function extract(): InPage {
   }
   for (const img of document.querySelectorAll("img")) {
     if (!visible(img) || !img.currentSrc) continue;
-    const score = (hinted(img) ? 60 : 0) + (inHomeLink(img) ? 40 : 0) + (inHeader(img) ? 10 : 0) + (/\.svg(\?|$)/i.test(img.currentSrc) ? 5 : 0);
-    if (score >= 40) logos.push({ kind: "url", score, url: img.currentSrc });
+    const score = logoScore(img);
+    if (score >= 40) logos.push({ kind: "url", score: score + (/\.svg(\?|$)/i.test(img.currentSrc) ? 5 : 0), url: img.currentSrc });
   }
   for (const l of document.querySelectorAll("link[rel]")) {
     const rel = (l.getAttribute("rel") ?? "").toLowerCase();
