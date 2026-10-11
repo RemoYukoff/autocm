@@ -386,7 +386,7 @@ $("#gen-btn").addEventListener("click", () => {
   run(
     "generate",
     () => api("POST", `/api/accounts/${encodeURIComponent(p.slug)}/generate`),
-    (r) => `New post for ${fmtTime(r.slot.scheduled_at, p.timezone)}. ${p.paused ? "It is written when you resume." : "Writing it now."}`,
+    (r) => `New post for ${fmtTime(r.slot.scheduled_at, p.timezone)}. Writing it now.`,
   );
 });
 

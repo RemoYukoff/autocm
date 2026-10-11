@@ -5,7 +5,6 @@ import { log } from "../core/log.ts";
 import type { PostRow } from "../core/types.ts";
 import { generatePost } from "../pipeline.ts";
 import { GuardError, publishPost } from "../publish/index.ts";
-import { isPaused } from "../safety/pause.ts";
 import { acquireTickLock, heartbeatTickLock, releaseTickLock } from "./lock.ts";
 
 export type SlotStatus = "pending" | "claimed" | "generated" | "done" | "skipped" | "failed";
@@ -94,8 +93,6 @@ async function generateDue(token: string): Promise<void> {
       if (Number(r.changes) === 1) slotEvent("slot_skipped", slot, { reason: "overdue > 3h before generation" });
       continue;
     }
-    // Do not burn LLM quota while the account is paused; its slots are skipped once they go 3 h overdue.
-    if (isPaused(slot.product)) continue;
 
     let enabled = true;
     try {

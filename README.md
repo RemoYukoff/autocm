@@ -75,7 +75,7 @@ list; nothing tracks it afterwards.
 
 The dashboard always shows one account: the last one opened in this browser, else the first. The account menu in
 the header switches between them; with no accounts the menu is just **+ Add account**. Each account has its own
-pause switch. Adding an account takes two steps and exposes no product settings:
+pause switch; it only stops publishing (posts are still written; a post more than 3 h past its time while paused is skipped). Adding an account takes two steps and exposes no product settings:
 
 1. **+ Add account** opens a browser window at x.com/login. Log in to the X account autocm should post from; the
    window closes by itself and the account appears under its @handle (its slug comes from the handle).
