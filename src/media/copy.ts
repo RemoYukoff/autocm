@@ -1,6 +1,6 @@
-// Pure copy helpers shared by image templates and Remotion compositions.
+// Pure copy helpers for the Remotion compositions.
 // Everything here is parsed in Node and injected as data, so the browser side never parses markup.
-import type { Draft, MediaCopy } from "../core/types.ts";
+import type { VideoCopy } from "../core/types.ts";
 
 export interface Segment {
   text: string;
@@ -85,28 +85,6 @@ export function toWords(segs: Segment[]): Word[] {
   return words;
 }
 
-/** "left | right" comparison row. Falls back to " vs " and finally to the whole line on the left. */
-export function splitComparison(line: string): [string, string] {
-  const byPipe = line.split("|");
-  if (byPipe.length >= 2) return [byPipe[0]!.trim(), byPipe.slice(1).join("|").trim()];
-  const vs = line.split(/\s+vs\.?\s+/i);
-  if (vs.length === 2) return [vs[0]!.trim(), vs[1]!.trim()];
-  return [line.trim(), ""];
-}
-
-/** "Who: what they say" meme/chat line. A line without a short speaker before the colon has no speaker. */
-export function splitSpeaker(line: string): { who: string | null; text: string } {
-  const m = /^\s*([^:]{1,32}):\s*(.*)$/.exec(line);
-  if (!m || /https?$/i.test(m[1]!)) return { who: null, text: line.trim() };
-  return { who: m[1]!.trim(), text: m[2]!.trim() };
-}
-
-/** Diff line: a leading "+" or "-" marks it added or removed; anything else is context. */
-export function splitDiff(line: string): { op: "+" | "-" | " "; text: string } {
-  const m = /^\s*([+-])\s?(.*)$/.exec(line);
-  return m ? { op: m[1] as "+" | "-", text: m[2]!.trimEnd() } : { op: " ", text: line.trim() };
-}
-
 /** Hostname without www, e.g. https://www.example.com/x -> example.com */
 export function hostOf(url: string): string {
   try {
@@ -114,16 +92,6 @@ export function hostOf(url: string): string {
   } catch {
     return url.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   }
-}
-
-/** media_copy, or a minimal one derived from the tweet text when the copywriter gave none. A copy with
- * lines but no headline is kept as is: meme and chat cards are just their lines. */
-export function mediaCopyOf(draft: Draft): MediaCopy {
-  const mc = draft.media_copy;
-  if (mc && (mc.headline?.trim() || mc.lines?.some((l) => l.trim()))) return mc;
-  const first = draft.text.split(/(?<=[.!?])\s+|\n+/)[0]?.trim() ?? draft.text.trim();
-  const headline = first.length > 110 ? `${first.slice(0, 107).replace(/\s+\S*$/, "")}…` : first;
-  return { headline, lines: [], highlight_words: draft.media_copy?.highlight_words ?? [] };
 }
 
 // ---------- Video beats ----------
@@ -157,16 +125,16 @@ export function beatSeconds(words: number): number {
 }
 
 /**
- * Turn headline + lines into sequential beats that fit in [minTotal, maxTotal] seconds including the outro.
+ * Turn headline + beats into sequential beats that fit in [minTotal, maxTotal] seconds including the outro.
  * Too short: beats stretch (up to 2x), then the outro absorbs the rest. Too long: beats compress down to
  * 1.2 s each, then trailing beats are dropped (the headline always stays).
  */
-export function planBeats(mc: MediaCopy, opts: BeatOptions = {}): BeatPlan {
+export function planBeats(vc: VideoCopy, opts: BeatOptions = {}): BeatPlan {
   const { host, minTotal = 6, maxTotal = 15, lead = 0.25 } = opts;
   let outro = opts.outro ?? 2.4;
   const norm = (s: string) => s.replace(/[*~]/g, "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const texts = [mc.headline, ...mc.lines].filter((t) => t.trim() && (!host || norm(t) !== norm(host)));
-  let wordsList = texts.map((t) => toWords(parseHighlights(t, mc.highlight_words)));
+  const texts = [vc.headline, ...vc.beats].filter((t) => t.trim() && (!host || norm(t) !== norm(host)));
+  let wordsList = texts.map((t) => toWords(parseHighlights(t, vc.highlight_words)));
   let durs = wordsList.map((w) => beatSeconds(w.length));
 
   const budget = maxTotal - outro - lead;

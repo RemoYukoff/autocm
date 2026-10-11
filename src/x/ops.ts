@@ -5,7 +5,7 @@ import { log } from "../core/log.ts";
 import type { MediaFile, XProfile } from "../core/types.ts";
 import { tweetUrl, XAuthError, XError } from "../publish/x.ts";
 import { hasAuthCookie } from "./browser.ts";
-import { findUser, findViewer, parseCreateTweet } from "./graphql.ts";
+import { findTweetMetrics, findUser, findViewer, parseCreateTweet, type TweetMetrics } from "./graphql.ts";
 import { AUTH_COOKIE, AUTH_WALL_PATHS, GRAPHQL_URL, PATHS, SEL, WAIT } from "./selectors.ts";
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -82,6 +82,11 @@ export class GraphqlTap {
       this.waiters.add(waiter);
       check();
     });
+  }
+
+  /** Every buffered response, oldest first. */
+  all(): TappedResponse[] {
+    return [...this.buffer];
   }
 
   /** Latest buffered response for which `pick` returns non-null (no waiting). */
@@ -333,3 +338,27 @@ export async function readProfile(ctx: BrowserContext, page: Page, tap: GraphqlT
   return { handle, name: name ?? known?.name ?? null, avatar_url: avatar ?? known?.avatar_url ?? null };
 }
 
+
+// ---------- metrics ----------
+
+/** Engagement of the account's own posts, read from the profile timeline X loads (scrolling until all are seen). */
+export async function readMetrics(ctx: BrowserContext, page: Page, tap: GraphqlTap, origin: string, handle: string, ids: string[]): Promise<Map<string, TweetMetrics>> {
+  await requireAuthCookie(ctx, origin);
+  const want = new Set(ids);
+  const found = new Map<string, TweetMetrics>();
+  const collect = () => {
+    for (const r of tap.all()) for (const [id, m] of findTweetMetrics(r.json, want)) found.set(id, m);
+  };
+  tap.clear();
+  await goto(page, xUrl(origin, PATHS.profile(handle)));
+  await tap.next((r) => (findTweetMetrics(r.json, want).size ? true : null), WAIT.profile, `the timeline of @${handle}`).catch(() => null);
+  for (let i = 0; i < 8; i++) {
+    collect();
+    if (found.size === want.size) break;
+    await page.mouse.wheel(0, 3000);
+    await sleep(2500);
+  }
+  collect();
+  assertNotWalled(page);
+  return found;
+}

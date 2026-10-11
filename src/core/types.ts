@@ -69,6 +69,8 @@ export const ProductConfig = z.object({
       files: z.array(z.string()).default([]).describe("woff2 paths relative to products/<slug>/"),
     }),
     logo: z.string().describe("Path relative to products/<slug>/"),
+    guidelines: z.array(z.string()).min(1).describe("Design manual for the designer: look, mood, layout habits, do's and don'ts"),
+    reference: z.string().describe("Screenshot of the product's website (path relative to products/<slug>/), the designer's visual reference"),
   }),
   assets: z
     .object({
@@ -121,64 +123,82 @@ export interface XProfile {
 export const Format = z.enum(["text", "image", "video"]);
 export type Format = z.infer<typeof Format>;
 
-export const MediaKind = z.enum(["none", "template", "ai_image", "remotion", "clip", "ai_video"]);
+/** none: text only. design: image designed from scratch by the designer agent. kinetic: kinetic-typography video. clip: product clip with a caption. */
+export const MediaKind = z.enum(["none", "design", "kinetic", "clip"]);
 export type MediaKind = z.infer<typeof MediaKind>;
 
-export const TemplateId = z.enum(["statement", "poster", "meme", "chat", "diff", "comparison", "stat", "checklist", "screenshot"]);
-export type TemplateId = z.infer<typeof TemplateId>;
-
 export interface Capabilities {
-  template: boolean;
-  remotion: boolean;
   clip: boolean;
-  ai_image: boolean;
-  ai_video: boolean;
   /** The product has a connected X session, so it can publish. */
   live: boolean;
 }
 
 export const KIND_FORMAT: Record<MediaKind, Format> = {
   none: "text",
-  template: "image",
-  ai_image: "image",
-  remotion: "video",
+  design: "image",
+  kinetic: "video",
   clip: "video",
-  ai_video: "video",
 };
 
 // ---------- Stage contracts ----------
 
+/** What the post is for. The marketer balances these over time (src/agents/playbook.ts). */
+export const Goal = z.enum(["reach", "engagement", "conversion"]);
+export type Goal = z.infer<typeof Goal>;
+
+/** The kind of post, from the marketing playbook (src/agents/playbook.ts). */
+export const Play = z.enum([
+  "hot_take",
+  "relatable_pain",
+  "story",
+  "how_to",
+  "teardown",
+  "myth_vs_reality",
+  "list",
+  "question",
+  "product_moment",
+  "offer",
+]);
+export type Play = z.infer<typeof Play>;
+
+export const ImageAspect = z.enum(["landscape", "square", "portrait"]);
+export type ImageAspect = z.infer<typeof ImageAspect>;
+
+/** The marketer's creative brief for the designer: what the image shows and says, not how it is laid out. */
+export const Visual = z.object({
+  concept: z.string().describe("What the image shows and why it stops the scroll: the joke, the contrast, the scene. Concrete, not a mood board"),
+  words: z.string().describe("The words that must appear on the image (headline, labels, chat lines...), as few as possible"),
+  aspect: ImageAspect.describe("landscape 16:9, square 1:1 or portrait 4:5 (portrait and square take more of a phone screen)"),
+});
+export type Visual = z.infer<typeof Visual>;
+
 export const Brief = z.object({
+  goal: Goal,
+  play: Play,
   pillar: z.string(),
+  insight: z.string().describe("The belief, frustration or desire in the reader's head that this post plays on"),
   angle: z.string().describe("The specific idea of this post, one sentence"),
   hook_idea: z.string().describe("How the first line grabs attention"),
   format: Format,
   media_kind: MediaKind,
-  template_id: TemplateId.optional().describe("Required when media_kind is template"),
+  visual: Visual.optional().describe("Required when media_kind is design"),
   clip_id: z.string().optional().describe("Required when media_kind is clip"),
-  screen_id: z.string().optional().describe("Optional screenshot for the screenshot template"),
-  theme: z.enum(["dark", "light"]).optional().describe("Required when media_kind is template: card background"),
   include_link: z.boolean(),
-  visual_direction: z.string().optional().describe("For ai_image / ai_video: what the visual should show"),
-  rationale: z.string().describe("Why this pillar, angle and format now"),
+  rationale: z.string().describe("Why this goal, play, angle and format now"),
 });
 export type Brief = z.infer<typeof Brief>;
 
-export const MediaCopy = z.object({
-  headline: z.string().describe("Main text on the image/video; may wrap *words* to highlight"),
-  lines: z.array(z.string()).default([]).describe("Supporting lines, bullets, comparison rows or video beats"),
+/** Words of a video: the opening line and the beats that follow (kinetic), or the title card (clip). */
+export const VideoCopy = z.object({
+  headline: z.string().describe("Opening beat or title card; may wrap *words* to highlight"),
+  beats: z.array(z.string()).default([]).describe("Kinetic video: 3-5 following beats. Clip: empty"),
   highlight_words: z.array(z.string()).default([]),
-  kicker: z.string().optional().describe("Small label above the headline, e.g. 'Hot take', 'POV', 'Unpopular opinion'"),
-  stat: z.string().optional().describe("Big number for the stat template, e.g. '~$1.30'"),
-  left_label: z.string().optional().describe("Comparison template left column title"),
-  right_label: z.string().optional().describe("Comparison template right column title"),
 });
-export type MediaCopy = z.infer<typeof MediaCopy>;
+export type VideoCopy = z.infer<typeof VideoCopy>;
 
 export const Draft = z.object({
   text: z.string().describe("Tweet text, <=280 weighted chars"),
-  alt_text: z.string().optional().describe("Alt text for image/video, <=1000 chars"),
-  media_copy: MediaCopy.optional(),
+  video: VideoCopy.optional().describe("Only for kinetic and clip posts"),
 });
 export type Draft = z.infer<typeof Draft>;
 
@@ -197,6 +217,8 @@ export const MediaResult = z.object({
   files: z.array(MediaFile),
   /** PNG previews (dashboard): the image itself, or ~5 video frames. */
   preview_frames: z.array(z.string()).default([]),
+  /** Image description for screen readers (designed images). */
+  alt_text: z.string().optional(),
   /** Set when the requested kind failed and a fallback kind was used. */
   fallback_from: MediaKind.optional(),
   notes: z.array(z.string()).default([]),
@@ -217,6 +239,8 @@ export interface PostRow {
   product: string;
   slot_id: number | null;
   status: PostStatus;
+  goal: Goal | null;
+  play: Play | null;
   pillar: string | null;
   angle: string | null;
   format: Format | null;
@@ -233,6 +257,14 @@ export interface PostRow {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  /** Engagement read back from X after publishing (null until first read). */
+  views: number | null;
+  likes: number | null;
+  reposts: number | null;
+  replies: number | null;
+  quotes: number | null;
+  bookmarks: number | null;
+  metrics_at: string | null;
 }
 
 export interface PublishResult {

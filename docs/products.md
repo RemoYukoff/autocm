@@ -20,7 +20,8 @@ session and its posts. The rest of this file documents what autocm writes, for r
        logo.svg
        fonts/              # *.woff2 + fonts.css + the font license
        clips/              # short MP4 clips (H.264 yuv420p + AAC 48 kHz, +faststart, <= 8 MB each)
-       screens/            # PNG screenshots for the "screenshot" image template
+       brand/site.png      # screenshot of the website: the designer's visual reference
+       screens/            # PNG product screenshots the designer may place in an image
    ```
 
 2. Write `product.yaml`. Paths are relative to `products/<slug>/`.
@@ -32,15 +33,17 @@ session and its posts. The rest of this file documents what autocm writes, for r
    | `enabled` | `false` skips the product in `plan`/`tick`/`run`. |
    | `language`, `timezone` | Post language and the IANA zone the posting `windows` are in. |
    | `one_liner`, `audience` | One sentence each; the planner sees them on every post. |
-   | `voice.rules` / `banned_phrases` / `example_posts` | Style rules, phrases the copywriter must avoid, and real lines to imitate. |
+   | `voice.rules` / `banned_phrases` / `example_posts` | Tone and claim rules (not post structure: the marketer picks that), phrases the copywriter must avoid, and real lines to imitate. |
    | `pillars` | Content themes with `id`, `description` and relative `weight`. |
    | `format_mix` | Relative share of `text` / `image` / `video` posts. |
    | `cadence` | `posts_per_day_min` / `posts_per_day_max` (each day draws a count in between), `windows` (`"HH:MM-HH:MM"`), `daily_cap`, `min_gap_min`. |
    | `brand.colors` | `primary`, `accent`, `ink`, `bg`, optional `muted` (hex). |
    | `brand.fonts` | `sans`, optional `mono` (family names) and `files` (woff2 paths). |
    | `brand.logo` | Logo path (SVG preferred). |
-   | `assets.clips` | `{id, path, description, start?, end?}`. The strategist picks clips by `description`, so say exactly what is on screen and what is said, plus aspect ratio and duration. |
-   | `assets.screens` | `{id, path, description}` for the screenshot template. |
+   | `brand.guidelines` | The design manual the designer follows: look and mood, type, color use, shapes, motifs, what is off-brand. Read from the website screenshot. |
+   | `brand.reference` | Screenshot of the website (`assets/brand/site.png`), shown to the designer as visual reference. |
+   | `assets.clips` | `{id, path, description, start?, end?}`. The marketer picks clips by `description`, so say exactly what is on screen and what is said, plus aspect ratio and duration. |
+   | `assets.screens` | `{id, path, description}`: product screenshots the designer may place in an image. |
    | `links` | `cta_url`, optional `utm`, `max_link_ratio` (share of recent posts allowed to carry a link). |
    | `hashtags` | `max_per_post`. |
 

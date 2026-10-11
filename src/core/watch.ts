@@ -1,5 +1,5 @@
 // Code reload for the long-running daemon: watch the sources that are loaded once per process and ask for a
-// restart when they change. Product files, image templates and the dashboard's public/ are read on every use,
+// restart when they change. Product files and the dashboard's public/ are read on every use,
 // so they apply without a restart and are not watched.
 import fs from "node:fs";
 import path from "node:path";

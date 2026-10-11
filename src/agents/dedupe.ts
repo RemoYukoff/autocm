@@ -30,7 +30,7 @@ export async function checkDuplicate(product: Product, brief: Brief, history: Po
 
   const verdict = await callJson(
     z.object({
-      duplicate: z.boolean().describe("true if the new idea makes essentially the same point as one of the past posts"),
+      duplicate: z.boolean().describe("true only if a reader of that past post would feel they are reading it again"),
       of_post_id: z.number().int().optional(),
       reason: z.string(),
     }),
@@ -40,7 +40,9 @@ New post idea: angle="${brief.angle}", hook="${brief.hook_idea}", pillar=${brief
 Past posts:
 ${candidates.map((p) => `#${p.id} angle="${p.angle}" text="${(p.text ?? "").replace(/\s+/g, " ").slice(0, 200)}"`).join("\n")}
 
-Is the new idea a duplicate? Same topic is fine; making the same point again (even reworded) is a duplicate.`,
+Is the new idea a duplicate? A brand repeats its core message on purpose: the same thesis told through a different
+scenario, example, play or format is NOT a duplicate. It is a duplicate only when a reader who saw the past post would
+feel they are reading it again: the same example or scenario making the same point, even reworded.`,
     { stage: "dedupe", model: "haiku", postId },
   );
   return verdict;

@@ -9,5 +9,5 @@ remotion/out/
 .claude/worktrees/
 data/sessions/
 data/accounts/
-products/
-fixtures/
+/products/
+/fixtures/

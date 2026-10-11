@@ -1,6 +1,6 @@
 // Single seam to the LLM. The default adapter uses the Claude Agent SDK, which runs on the
 // user's Claude Code subscription login (no API key needed).
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -8,7 +8,10 @@ import { z } from "zod";
 import { logLlmCall } from "./core/db/index.ts";
 import { log } from "./core/log.ts";
 
-export type Model = "haiku" | "sonnet";
+export type Model = "haiku" | "sonnet" | "opus";
+
+/** A tool made with the Agent SDK's `tool()`. */
+export type AgentTool = NonNullable<Parameters<typeof createSdkMcpServer>[0]["tools"]>[number];
 
 export interface CallOptions {
   /** Pipeline stage name; used for logging. */
@@ -17,6 +20,14 @@ export interface CallOptions {
   system?: string;
   postId?: number;
   timeoutMs?: number;
+  /** PNG/JPEG/WebP files shown to the model before the prompt text. */
+  images?: string[];
+  /** In-process tools the model may call (exposed as mcp__autocm__<name>). */
+  tools?: AgentTool[];
+  /** Agent turns; each tool call takes one. */
+  maxTurns?: number;
+  /** Tries before giving up (default 2). Calls whose tools keep state retry on their own instead. */
+  attempts?: number;
 }
 
 interface AdapterResult {
@@ -37,7 +48,8 @@ export async function callJson<S extends z.ZodType>(schema: S, prompt: string, o
   const jsonSchema = z.toJSONSchema(schema, { target: "draft-7", io: "input" });
   const model = opts.model ?? "sonnet";
   let lastErr: unknown;
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  const attempts = opts.attempts ?? 2;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     const t0 = Date.now();
     try {
       const { output, costUsd } = await sdkAdapter(jsonSchema, prompt, opts);
@@ -55,7 +67,46 @@ export async function callJson<S extends z.ZodType>(schema: S, prompt: string, o
   throw lastErr instanceof Error ? lastErr : new LlmError(String(lastErr));
 }
 
+/** Text tool result for an AgentTool handler. */
+export function toolText(text: string) {
+  return { content: [{ type: "text" as const, text }] };
+}
+
+/** Image (plus optional text) tool result for an AgentTool handler. */
+export function toolImage(file: string, text?: string) {
+  return {
+    content: [
+      { type: "image" as const, data: fs.readFileSync(file).toString("base64"), mimeType: imageMime(file) },
+      ...(text ? [{ type: "text" as const, text }] : []),
+    ],
+  };
+}
+
+function imageMime(file: string): "image/png" | "image/jpeg" | "image/webp" {
+  const ext = path.extname(file).toLowerCase();
+  return ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".webp" ? "image/webp" : "image/png";
+}
+
 // ---------- Agent SDK adapter ----------
+
+const SERVER = "autocm";
+
+async function* userMessage(prompt: string, images: string[]): AsyncIterable<SDKUserMessage> {
+  yield {
+    type: "user",
+    parent_tool_use_id: null,
+    message: {
+      role: "user",
+      content: [
+        ...images.map((f) => ({
+          type: "image" as const,
+          source: { type: "base64" as const, media_type: imageMime(f), data: fs.readFileSync(f).toString("base64") },
+        })),
+        { type: "text" as const, text: prompt },
+      ],
+    },
+  };
+}
 
 const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "autocm-llm-"));
@@ -63,23 +114,28 @@ const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
   const childEnv: Record<string, string | undefined> = { ...process.env };
   delete childEnv.ANTHROPIC_API_KEY;
 
+  const tools = opts.tools ?? [];
+  const images = opts.images ?? [];
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), opts.timeoutMs ?? 300_000);
   try {
     for await (const msg of query({
-      prompt,
+      prompt: images.length ? userMessage(prompt, images) : prompt,
       options: {
         cwd,
         model: opts.model ?? "sonnet",
         systemPrompt: opts.system ?? DEFAULT_SYSTEM,
         outputFormat: { type: "json_schema", schema: jsonSchema as Record<string, unknown> },
+        // No built-in tools; only our own in-process ones, allowed without asking.
         tools: [],
+        mcpServers: tools.length ? { [SERVER]: createSdkMcpServer({ name: SERVER, tools }) } : {},
+        allowedTools: tools.map((t) => `mcp__${SERVER}__${t.name}`),
+        permissionMode: "dontAsk",
         // Keep the user's own settings, hooks, CLAUDE.md, plugins and MCP servers out of the prompt.
         settingSources: [],
-        mcpServers: {},
         strictMcpConfig: true,
         persistSession: false,
-        maxTurns: 4,
+        maxTurns: opts.maxTurns ?? 4,
         env: childEnv,
         abortController: abort,
       },
@@ -97,5 +153,6 @@ const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
     throw err;
   } finally {
     clearTimeout(timer);
+    fs.rmSync(cwd, { recursive: true, force: true });
   }
 };

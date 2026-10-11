@@ -1,6 +1,10 @@
 // Read a product's site with headless Chromium (homepage plus a few relevant same-origin pages), pick a logo and
-// brand colors from the rendered page, then ask the LLM for a draft product.yaml and an overview knowledge file.
+// brand colors from the rendered page and screenshot it, then ask the LLM (which sees the screenshot) for a draft
+// product.yaml, the design manual and an overview knowledge file.
 // The draft is written as-is (src/dashboard/accounts.ts): nobody reviews it.
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { z } from "zod";
 import { callJson } from "../llm.ts";
@@ -64,6 +68,8 @@ export interface SiteScrape {
   colors: BrandColors;
   logo: Logo | null;
   logoSource: string | null;
+  /** PNG of the homepage's first screen: the designer's visual reference. */
+  screenshot: Buffer;
 }
 
 export interface ProductDraft {
@@ -71,6 +77,8 @@ export interface ProductDraft {
   config: Record<string, unknown>;
   knowledge: { name: string; content: string }[];
   logo: Logo | null;
+  /** PNG of the homepage, saved as the brand reference. */
+  reference: Buffer;
   sources: string[];
   /** Choices made on the way (time zone fallback, logo source...), logged when the product is written. */
   notes: string[];
@@ -356,6 +364,7 @@ export async function scrapeSite(rawUrl: string, step: Step = () => {}, browserI
     await load(page, home.href);
     const finalHome = new URL(page.url());
     const first = await page.evaluate(extract);
+    const screenshot = await page.screenshot({ type: "png" });
     const pages: PageText[] = [{ url: finalHome.href, title: first.title, description: first.meta.description ?? first.meta["og:description"] ?? "", text: first.text.slice(0, HOME_CHARS) }];
     for (const href of pickPages(first.links, finalHome)) {
       step(`Reading ${new URL(href).pathname}`);
@@ -386,6 +395,7 @@ export async function scrapeSite(rawUrl: string, step: Step = () => {}, browserI
       colors: first.colors,
       logo: logo?.logo ?? null,
       logoSource: logo?.source ?? null,
+      screenshot,
     };
   } finally {
     if (!browserIn) await browser.close();
@@ -401,7 +411,9 @@ export const DraftSchema = z.object({
   language: z.string().describe("ISO 639-1 code of the language posts should be written in (the site's language)"),
   timezone: z.string().describe("IANA time zone where most of the audience is, e.g. America/New_York"),
   voice: z.object({
-    rules: z.array(z.string()).describe("4-8 concrete voice rules for X posts, matching the site's tone"),
+    rules: z
+      .array(z.string())
+      .describe("4-8 concrete voice rules for X posts, matching the site's tone: register, humor, vocabulary, what may be claimed. Not post structure (the marketer decides that per post)"),
     banned_phrases: z.array(z.string()).describe("Hype words and cliches to never use"),
     example_posts: z.array(z.string()).describe("3-6 example posts (<=280 chars) using only facts from the site"),
   }),
@@ -409,6 +421,13 @@ export const DraftSchema = z.object({
     .array(z.object({ id: z.string().describe("kebab-case id"), description: z.string(), weight: z.number().describe("relative weight 1-3") }))
     .describe("3-5 content pillars"),
   format_mix: z.object({ text: z.number(), image: z.number(), video: z.number() }).describe("Relative share of text/image/video posts"),
+  brand_guidelines: z
+    .array(z.string())
+    .describe(
+      "5-8 rules of a design manual for the images of the X account, read from the attached screenshot of the homepage: " +
+        "the look and mood, type (weights, case, tracking), how color is used, shapes, corners, spacing, recurring motifs, " +
+        "and what would feel off-brand. Concrete enough for a designer who never saw the site.",
+    ),
   cta_url: z.string().describe("Best page to send people to (trial/pricing/home), on the same site"),
   knowledge_markdown: z
     .string()
@@ -426,8 +445,8 @@ function prompt(s: SiteScrape): string {
   const meta = Object.entries(s.meta)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
-  return `You are setting up an autonomous X (Twitter) account for a product. Below is the visible text of its website.
-Draft the product profile the posting pipeline will use.
+  return `You are setting up an autonomous X (Twitter) account for a product. Below is the visible text of its website,
+and the attached image is a screenshot of its homepage. Draft the product profile the posting pipeline will use.
 
 Hard rules:
 - Use only facts stated on these pages. Do not invent customers, logos, quotes, metrics, percentages, time saved, integrations, features or prices.
@@ -436,6 +455,7 @@ Hard rules:
   invented customers or testimonials, metrics not on the site, features or integrations not listed, anything the site leaves unclear.
 - Voice rules must be specific to this product and its audience, and keep claims factual.
 - Pillar ids are short kebab-case words (e.g. pain, product, how-to, build-in-public).
+- brand_guidelines describe what you see in the screenshot, not generic advice.
 
 Site: ${s.url}
 Language attribute: ${s.language ?? "unknown"}
@@ -508,7 +528,13 @@ export function buildDraft(s: SiteScrape, d: DraftOut): ProductDraft {
     pillars: cleanPillars(d.pillars),
     format_mix: mixOk ? mix : { text: 0.4, image: 0.4, video: 0.2 },
     cadence: defaultCadence(),
-    brand: { colors: { ...s.colors }, fonts: { sans: "Geist", mono: "Geist Mono", files: [] }, logo: "" },
+    brand: {
+      colors: { ...s.colors },
+      fonts: { sans: "Geist", mono: "Geist Mono", files: [] },
+      logo: "",
+      guidelines: d.brand_guidelines.map((g) => g.trim()).filter(Boolean),
+      reference: "",
+    },
     assets: { clips: [], screens: [] },
     links: { cta_url: cta, max_link_ratio: 0.34 },
     hashtags: { max_per_post: 1 },
@@ -517,6 +543,7 @@ export function buildDraft(s: SiteScrape, d: DraftOut): ProductDraft {
     config,
     knowledge: [{ name: "00-overview.md", content: `${knowledge}\n` }],
     logo: s.logo,
+    reference: s.screenshot,
     sources: s.pages.map((p) => p.url),
     notes,
   };
@@ -527,6 +554,12 @@ export async function draftFromWebsite(url: string, step: Step = () => {}): Prom
   const scrape = await scrapeSite(url, step);
   if (scrape.pages.every((p) => p.text.length < 40)) throw new Error("The site has almost no readable text (is it a single-page app that needs a login?)");
   step("Writing the draft");
-  const out = await callJson(DraftSchema, prompt(scrape), { stage: PREFILL_STAGE, model: "sonnet", timeoutMs: 240_000 });
-  return buildDraft(scrape, out);
+  const shot = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "autocm-prefill-")), "home.png");
+  fs.writeFileSync(shot, scrape.screenshot);
+  try {
+    const out = await callJson(DraftSchema, prompt(scrape), { stage: PREFILL_STAGE, model: "sonnet", timeoutMs: 240_000, images: [shot] });
+    return buildDraft(scrape, out);
+  } finally {
+    fs.rmSync(path.dirname(shot), { recursive: true, force: true });
+  }
 }

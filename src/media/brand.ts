@@ -1,4 +1,4 @@
-// Brand tokens for renderers, resolved from product.yaml + products/<slug>/assets.
+// Brand tokens for renderers (designs and Remotion), resolved from product.yaml + products/<slug>/assets.
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -27,7 +27,7 @@ export interface Brand {
   monoStack: string;
   /** Font files to register (product fonts first, bundled Geist fallback last). */
   fonts: FontFile[];
-  /** Product-provided fonts.css (absolute path), imported by templates in addition to generated @font-face rules. */
+  /** Product-provided fonts.css (absolute path), imported by designs in addition to generated @font-face rules. */
   fontsCss: string | null;
   /** data: URI of the logo, recolored for the theme when it is an SVG with a dark-scheme block. */
   logo: string | null;
@@ -78,45 +78,53 @@ export function svgForTheme(svg: string, theme: Theme): string {
   return svg.replace(/prefers-color-scheme\s*:\s*dark/gi, theme === "dark" ? "min-width:0px" : "max-width:0px");
 }
 
-function logoDataUri(file: string, theme: Theme): string | null {
+/** Logo bytes for a background of the given theme (an SVG's dark-scheme block forced on or off). */
+export function logoFile(product: Product, theme: Theme): { body: Buffer; ext: string } | null {
+  const file = productPath(product, product.config.brand.logo);
   if (!fs.existsSync(file)) return null;
   const ext = path.extname(file).toLowerCase();
-  if (ext === ".svg") {
-    const svg = svgForTheme(fs.readFileSync(file, "utf8"), theme);
-    return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+  if (ext === ".svg") return { body: Buffer.from(svgForTheme(fs.readFileSync(file, "utf8"), theme)), ext };
+  return { body: fs.readFileSync(file), ext };
+}
+
+function logoDataUri(product: Product, theme: Theme): string | null {
+  const logo = logoFile(product, theme);
+  if (!logo) return null;
+  const mime = logo.ext === ".svg" ? "image/svg+xml" : logo.ext === ".png" ? "image/png" : logo.ext === ".webp" ? "image/webp" : "image/jpeg";
+  return `data:${mime};base64,${logo.body.toString("base64")}`;
+}
+
+/** Product font files (product.yaml first, the bundled Geist fallback last) and the product's fonts.css, if any. */
+export function resolveFonts(product: Product): { fonts: FontFile[]; fontsCss: string | null; notes: string[] } {
+  const { sans, mono, files } = product.config.brand.fonts;
+  const notes: string[] = [];
+  const fonts: FontFile[] = [];
+  const cssPath = path.join(product.dir, "assets", "fonts", "fonts.css");
+  const fontsCss = fs.existsSync(cssPath) ? cssPath : null;
+  // Listed files are always registered (Remotion only sees these); designs additionally @import fonts.css.
+  for (const rel of files) {
+    const abs = productPath(product, rel);
+    if (fs.existsSync(abs)) fonts.push(fontFaceFromFile(abs, sans, mono));
+    else notes.push(`font file missing: ${rel}`);
   }
-  const mime = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
-  return `data:${mime};base64,${fs.readFileSync(file).toString("base64")}`;
+  fonts.push(...bundledFallbackFonts());
+  return { fonts, fontsCss, notes };
 }
 
 export function resolveBrand(product: Product, theme: Theme = "dark"): Brand {
   const c = product.config;
   const col = c.brand.colors;
-  const notes: string[] = [];
   const muted = col.muted ?? "#71717A";
   const bg = theme === "dark" ? col.ink : col.bg;
   const fg = theme === "dark" ? col.bg : col.ink;
-  // A monochrome site gives accent == primary == ink, which vanishes on a dark card: brand colors that do
+  // A monochrome site gives accent == primary == ink, which vanishes on a dark background: brand colors that do
   // not stand out from the background give way to the foreground.
   const pop = (c: string) => (contrast(c, bg) >= 2.5 ? c : fg);
   const hl = pop(theme === "dark" ? col.accent : col.primary);
   const colors = { bg, fg, muted, hl, onHl: contrast(bg, hl) >= contrast(fg, hl) ? bg : fg, primary: pop(col.primary), accent: pop(col.accent), ink: col.ink, paper: col.bg };
 
-  const sans = c.brand.fonts.sans;
-  const mono = c.brand.fonts.mono;
-  const fonts: FontFile[] = [];
-  const cssPath = path.join(product.dir, "assets", "fonts", "fonts.css");
-  const fontsCss = fs.existsSync(cssPath) ? cssPath : null;
-  // Listed files are always registered (Remotion only sees these); templates additionally @import fonts.css.
-  for (const rel of c.brand.fonts.files) {
-    const abs = productPath(product, rel);
-    if (fs.existsSync(abs)) fonts.push(fontFaceFromFile(abs, sans, mono));
-    else notes.push(`font file missing: ${rel}`);
-  }
-  if (!fontsCss && fonts.length === 0) notes.push(`no ${sans} font files in product; using bundled fallback`);
-  fonts.push(...bundledFallbackFonts());
-
-  const logo = logoDataUri(productPath(product, c.brand.logo), theme);
+  const { fonts, fontsCss, notes } = resolveFonts(product);
+  const logo = logoDataUri(product, theme);
   if (!logo) notes.push(`logo missing: ${c.brand.logo}`);
 
   return {
@@ -125,8 +133,8 @@ export function resolveBrand(product: Product, theme: Theme = "dark"): Brand {
     host: hostOf(c.url),
     theme,
     colors,
-    sansStack: `"${sans}", "autocm-sans", ui-sans-serif, system-ui, sans-serif`,
-    monoStack: `${mono ? `"${mono}", ` : ""}"autocm-mono", ui-monospace, monospace`,
+    sansStack: `"${c.brand.fonts.sans}", "autocm-sans", ui-sans-serif, system-ui, sans-serif`,
+    monoStack: `${c.brand.fonts.mono ? `"${c.brand.fonts.mono}", ` : ""}"autocm-mono", ui-monospace, monospace`,
     fonts,
     fontsCss,
     logo,
@@ -149,11 +157,6 @@ function luminance(hex: string): number {
 export function contrast(a: string, b: string): number {
   const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
   return (x! + 0.05) / (y! + 0.05);
-}
-
-/** :root custom properties shared by templates (and mirrored in Remotion props). */
-export function brandCssVars(b: Brand): string {
-  return `:root{--bg:${b.colors.bg};--fg:${b.colors.fg};--muted:${b.colors.muted};--hl:${b.colors.hl};--on-hl:${b.colors.onHl};--primary:${b.colors.primary};--accent:${b.colors.accent};--sans:${b.sansStack};--mono:${b.monoStack};color-scheme:${b.theme};}`;
 }
 
 export function fontFaceCss(fonts: FontFile[], urlFor: (f: FontFile, i: number) => string): string {

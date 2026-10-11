@@ -174,6 +174,21 @@ function mediaHtml(post) {
   return `<div class="tw-media-wrap">${items}</div>`;
 }
 
+const compact = new Intl.NumberFormat(LOCALE, { notation: "compact", maximumFractionDigits: 1 });
+
+/** Why the post exists (goal · play, the angle on hover) and, once read from X, how it did. */
+function metaHtml(post) {
+  const why = post.goal ? `<div class="tw-why" title="${esc(post.angle ?? "")}">${esc(post.goal)} · ${esc((post.play ?? "").replace(/_/g, " "))}</div>` : "";
+  const m = post.metrics;
+  const nums = m
+    ? `<div class="tw-stats">${[["views", m.views], ["likes", m.likes], ["replies", m.replies], ["reposts", m.reposts], ["bookmarks", m.bookmarks]]
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => `<span><b>${esc(compact.format(v))}</b> ${k}</span>`)
+        .join("")}</div>`
+    : "";
+  return why || nums ? `<div class="tw-meta">${why}${nums}</div>` : "";
+}
+
 /** `when`: the scheduled time label shown after the handle. */
 function tweetCard(post, when) {
   const p = product(post.product);
@@ -185,6 +200,7 @@ function tweetCard(post, when) {
       <div class="tw-head"><span class="tw-name">${esc(p.name)}</span><span class="tw-handle">${esc(handle)} · ${esc(when)}</span></div>
       ${text}
       ${mediaHtml(post)}
+      ${metaHtml(post)}
     </div>
   </article>`;
 }

@@ -4,7 +4,7 @@
 // the scheduler's tick, and a double click finds the post gone and is refused.
 import fs from "node:fs";
 import { loadProduct } from "../core/config.ts";
-import { getDb, getPost, logEvent } from "../core/db/index.ts";
+import { getDb, getPost, logEvent, type Discarded } from "../core/db/index.ts";
 import { track } from "../core/inflight.ts";
 import { log } from "../core/log.ts";
 import { postOutDir } from "../core/paths.ts";
@@ -57,7 +57,9 @@ export function discardPost(postId: number): void {
   if (Number(db.prepare("DELETE FROM posts WHERE id = ? AND status = 'approved'").run(postId).changes) !== 1) throw notApproved(post, "discarded");
   if (slot) db.prepare("DELETE FROM slots WHERE id = ? AND post_id = ?").run(slot.id, postId);
   fs.rmSync(postOutDir(post.product, post.id, new Date(post.created_at)), { recursive: true, force: true });
-  logEvent("post_discarded", { product: post.product, post_id: post.id, payload: { source: "dashboard", slot_id: slot?.id ?? null, scheduled_at: slot?.scheduled_at ?? null } });
+  // The vetoed idea is kept here: the marketer reads it to stay away from what the owner did not want.
+  const veto: Discarded = { goal: post.goal, play: post.play, pillar: post.pillar, format: post.format, angle: post.angle, text: post.text };
+  logEvent("post_discarded", { product: post.product, post_id: post.id, payload: { source: "dashboard", slot_id: slot?.id ?? null, scheduled_at: slot?.scheduled_at ?? null, ...veto } });
 }
 
 /** A scheduler pass right after the one in flight (if any), so a new slot is written without waiting for the next one. */

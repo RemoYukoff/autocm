@@ -2,6 +2,7 @@
 import cron from "node-cron";
 import { loadProducts } from "../core/config.ts";
 import { log } from "../core/log.ts";
+import { refreshMetrics } from "../publish/metrics.ts";
 import { planProductSlots } from "./plan.ts";
 import { currentTick, recover, tick as runTick } from "./tick.ts";
 
@@ -23,7 +24,7 @@ export async function tick(): Promise<void> {
   await runTick();
 }
 
-/** Long-running daemon: tick every 5 minutes, plan daily. */
+/** Long-running daemon: tick every 5 minutes, plan daily, read post metrics every 2 hours. */
 export async function runDaemon(): Promise<void> {
   log.info("autocm daemon starting");
   const rec = recover();
@@ -45,8 +46,19 @@ export async function runDaemon(): Promise<void> {
     }
   };
 
+  const safeMetrics = async () => {
+    for (const product of loadProducts()) {
+      try {
+        await refreshMetrics(product);
+      } catch (e) {
+        log.warn({ product: product.config.slug, err: (e as Error).message }, "reading post metrics failed");
+      }
+    }
+  };
+
   const tickTask = cron.schedule("*/5 * * * *", safeTick, { name: "autocm-tick", timezone: "UTC", noOverlap: true });
   const planTask = cron.schedule("5 0 * * *", safePlan, { name: "autocm-plan", timezone: "UTC", noOverlap: true });
+  const metricsTask = cron.schedule("37 */2 * * *", safeMetrics, { name: "autocm-metrics", timezone: "UTC", noOverlap: true });
   await safeTick();
 
   await new Promise<void>((resolve) => {
@@ -55,9 +67,11 @@ export async function runDaemon(): Promise<void> {
       void (async () => {
         await tickTask.stop();
         await planTask.stop();
+        await metricsTask.stop();
         await currentTick()?.catch(() => undefined);
         await tickTask.destroy();
         await planTask.destroy();
+        await metricsTask.destroy();
         resolve();
       })();
     };

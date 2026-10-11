@@ -1,5 +1,6 @@
 // X client contract. The real client drives the product's logged-in browser profile (src/x/); there is no X API.
 import type { MediaFile, Product, XProfile } from "../core/types.ts";
+import type { TweetMetrics } from "../x/graphql.ts";
 
 export type XErrorKind = "auth" | "rate_limit" | "transient" | "permanent";
 
@@ -37,6 +38,8 @@ export interface XClient {
   post(text: string, media: MediaFile[], altText?: string | null): Promise<{ id: string; url: string }>;
   /** Profile of the logged-in account. Throws XAuthError when logged out. */
   profile(): Promise<XProfile>;
+  /** Engagement of the account's own posts by id; posts X did not show are missing from the map. */
+  metrics(ids: string[]): Promise<Map<string, TweetMetrics>>;
 }
 
 export type XClientFactory = (product: Product) => XClient;

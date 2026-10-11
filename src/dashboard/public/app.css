@@ -320,6 +320,10 @@ button.when-time:hover, button.when-time:focus-visible { border-bottom-color: va
 .tw-empty { color: #71767b; }
 .tw-media-wrap { margin-top: 12px; border-radius: 16px; overflow: hidden; border: 1px solid #2f3336; background: #000; }
 .tw-media-open { all: unset; display: block; width: 100%; cursor: zoom-in; }
+.tw-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; margin-top: 10px; font-size: 13px; line-height: 18px; color: #71767b; }
+.tw-why { cursor: help; }
+.tw-stats { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.tw-stats b { color: #e7e9ea; font-weight: 600; }
 .tw-media-open:focus-visible { outline: 2px solid var(--busy); outline-offset: -2px; }
 
 /* Lightbox: the whole viewport is the dialog, so any click outside the image lands on it and closes. */

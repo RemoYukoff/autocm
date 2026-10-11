@@ -64,6 +64,24 @@ export function recentPosts(
     .all(product, ...statuses, limit) as unknown as PostRow[];
 }
 
+/** What a post discarded from the dashboard was about (kept in its post_discarded event). */
+export type Discarded = Pick<PostRow, "goal" | "play" | "pillar" | "format" | "angle" | "text">;
+
+/** Posts the owner discarded from the dashboard, newest first. */
+export function discardedPosts(product: string, limit = 10): (Discarded & { ts: string })[] {
+  const rows = getDb()
+    .prepare("SELECT ts, payload FROM events WHERE product = ? AND type = 'post_discarded' ORDER BY id DESC LIMIT ?")
+    .all(product, limit) as { ts: string; payload: string }[];
+  return rows.map((r) => ({ ts: r.ts, ...(JSON.parse(r.payload) as Discarded) }));
+}
+
+/** Store engagement read back from X. */
+export function savePostMetrics(id: number, m: Pick<PostRow, "views" | "likes" | "reposts" | "replies" | "quotes" | "bookmarks">): void {
+  getDb()
+    .prepare("UPDATE posts SET views = ?, likes = ?, reposts = ?, replies = ?, quotes = ?, bookmarks = ?, metrics_at = ? WHERE id = ?")
+    .run(m.views, m.likes, m.reposts, m.replies, m.quotes, m.bookmarks, nowIso(), id);
+}
+
 // ---------- flags ----------
 
 export function getFlag(key: string): string | undefined {

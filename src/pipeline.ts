@@ -1,15 +1,15 @@
-// Generation pipeline: strategist -> dedupe -> copywriter -> media. No LLM review; only X hard limits are checked.
+// Generation pipeline: marketer -> dedupe -> copywriter -> media (designer for images). No LLM review; only X hard limits are checked.
 import fs from "node:fs";
 import path from "node:path";
 import { checkDuplicate } from "./agents/dedupe.ts";
-import { writeDraft } from "./agents/copywriter.ts";
+import { writeDraft, type Written } from "./agents/copywriter.ts";
 import { mediaIssues, textIssues } from "./agents/checks.ts";
-import { planBrief } from "./agents/strategist.ts";
+import { planBrief } from "./agents/marketer.ts";
 import { capabilitiesFor, loadProduct } from "./core/config.ts";
 import { getPost, insertPost, logEvent, recentPosts, updatePost } from "./core/db/index.ts";
 import { log } from "./core/log.ts";
 import { postOutDir } from "./core/paths.ts";
-import type { Brief, Draft, MediaResult, PostRow } from "./core/types.ts";
+import type { Brief, MediaResult, PostRow } from "./core/types.ts";
 import { produceMedia } from "./media/index.ts";
 import { textHash } from "./safety/text.ts";
 
@@ -22,7 +22,7 @@ const MAX_REWRITES = 2;
 const MAX_DEDUPE_RETRIES = 2;
 
 /**
- * Full generation for one post: strategist -> dedupe -> copywriter -> media.
+ * Full generation for one post: marketer -> dedupe -> copywriter -> media.
  * Leaves the post `approved` (ready to publish), or `failed` if X would refuse it. Never publishes.
  */
 export async function generatePost(productSlug: string, opts: GenerateOptions = {}): Promise<PostRow> {
@@ -54,27 +54,29 @@ export async function generatePost(productSlug: string, opts: GenerateOptions = 
     };
 
     const brief = await newBrief();
-    let draft: Draft = await writeDraft({ product, brief, history, postId });
+    save("brief.json", brief);
+    let written: Written = await writeDraft({ product, brief, history, postId });
     // Only rule enforced on the text: it must fit in a tweet.
-    for (let i = 0; i < MAX_REWRITES && textIssues(draft).length; i++) {
-      draft = await writeDraft({ product, brief, history, feedback: textIssues(draft), previous: draft, postId });
+    for (let i = 0; i < MAX_REWRITES && textIssues(written.draft).length; i++) {
+      written = await writeDraft({ product, brief, history, feedback: textIssues(written.draft), previous: written.draft, postId });
     }
-    const media: MediaResult = await produceMedia(brief, draft, product, caps, outDir);
+    const draft = written.draft;
+    save("copy.json", written);
+    const media: MediaResult = await produceMedia(brief, draft, product, caps, outDir, postId);
     const issues = [...textIssues(draft), ...mediaIssues(brief, media)];
     updatePost(postId, { attempts: 1 });
-
-    save("brief.json", brief);
-    save("draft.json", draft);
     save("media.json", media);
 
     updatePost(postId, {
       status: issues.length ? "failed" : "approved",
+      goal: brief.goal,
+      play: brief.play,
       pillar: brief.pillar,
       angle: brief.angle,
       format: brief.format,
       media_kind: media.kind,
       text: draft.text,
-      alt_text: draft.alt_text ?? null,
+      alt_text: media.alt_text ?? null,
       media_json: JSON.stringify(media),
       brief_json: JSON.stringify(brief),
       text_hash: textHash(draft.text),

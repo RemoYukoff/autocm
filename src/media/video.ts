@@ -9,7 +9,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import type { ClipCaptionProps, KineticProps, BrandProps as RemotionBrand, Word as RemotionWord } from "../../remotion/src/types.ts";
 import { REMOTION_DIR } from "../core/paths.ts";
-import type { MediaCopy, MediaFile, Product } from "../core/types.ts";
+import type { MediaFile, Product, VideoCopy } from "../core/types.ts";
 import { resolveBrand, type Brand } from "./brand.ts";
 import { headlessShellPath } from "./browser.ts";
 import { parseHighlights, planBeats, toWords } from "./copy.ts";
@@ -133,7 +133,7 @@ async function renderComposition(
   };
 }
 
-export async function renderKinetic(copy: MediaCopy, product: Product, outPath: string, size: VideoSize = "square"): Promise<VideoOutput> {
+export async function renderKinetic(copy: VideoCopy, product: Product, outPath: string, size: VideoSize = "square"): Promise<VideoOutput> {
   const serveUrl = await getBundle();
   const brand = resolveBrand(product, "dark");
   const plan = planBeats(copy, { host: brand.host });
@@ -152,7 +152,7 @@ export async function probeSource(file: string): Promise<{ duration: number; wid
 
 export async function renderClipCaption(
   clipFile: string,
-  copy: MediaCopy,
+  copy: VideoCopy,
   product: Product,
   outPath: string,
   trim: { start?: number; end?: number } = {},

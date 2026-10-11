@@ -27,6 +27,12 @@ export interface PostView {
   text: string | null;
   alt_text: string | null;
   media: MediaView[];
+  /** What the marketer meant the post to do. */
+  goal: PostRow["goal"];
+  play: PostRow["play"];
+  angle: string | null;
+  /** Engagement read back from X, once read. */
+  metrics: Pick<PostRow, "views" | "likes" | "replies" | "reposts" | "quotes" | "bookmarks"> | null;
   /** Link to the tweet once published. */
   url: string | null;
   published_at: string | null;
@@ -104,7 +110,23 @@ export function postView(p: PostRow): PostView {
       poster: f.mime.startsWith("video/") ? poster : undefined,
     });
   }
-  return { id: p.id, product: p.product, slot_id: p.slot_id, status: p.status, text: p.text, alt_text: p.alt_text, media: files, url: p.url, published_at: p.published_at, error: p.error };
+  const metrics = p.metrics_at ? { views: p.views, likes: p.likes, replies: p.replies, reposts: p.reposts, quotes: p.quotes, bookmarks: p.bookmarks } : null;
+  return {
+    id: p.id,
+    product: p.product,
+    slot_id: p.slot_id,
+    status: p.status,
+    text: p.text,
+    alt_text: p.alt_text,
+    media: files,
+    goal: p.goal,
+    play: p.play,
+    angle: p.angle,
+    metrics,
+    url: p.url,
+    published_at: p.published_at,
+    error: p.error,
+  };
 }
 
 export function getSlot(id: number): SlotRow | undefined {

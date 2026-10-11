@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS posts (
   product      TEXT NOT NULL,
   slot_id      INTEGER,
   status       TEXT NOT NULL DEFAULT 'generating',
+  goal         TEXT,
+  play         TEXT,
   pillar       TEXT,
   angle        TEXT,
   format       TEXT,
@@ -18,7 +20,14 @@ CREATE TABLE IF NOT EXISTS posts (
   error        TEXT,
   created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  published_at TEXT
+  published_at TEXT,
+  views        INTEGER,
+  likes        INTEGER,
+  reposts      INTEGER,
+  replies      INTEGER,
+  quotes       INTEGER,
+  bookmarks    INTEGER,
+  metrics_at   TEXT
 );
 CREATE INDEX IF NOT EXISTS posts_product_status ON posts(product, status);
 CREATE INDEX IF NOT EXISTS posts_published_at ON posts(published_at);

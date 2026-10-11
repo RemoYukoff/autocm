@@ -152,3 +152,36 @@ export function findViewer(json: Json): XProfile | null {
   });
   return hit;
 }
+
+// ---------- post metrics ----------
+
+export interface TweetMetrics {
+  views: number | null;
+  likes: number;
+  reposts: number;
+  replies: number;
+  quotes: number;
+  bookmarks: number;
+}
+
+/** Engagement counts of the wanted posts found anywhere in the response (classic legacy.* or flat counters). */
+export function findTweetMetrics(json: Json, ids: Set<string>): Map<string, TweetMetrics> {
+  const out = new Map<string, TweetMetrics>();
+  walk(json, (o) => {
+    const id = typeof o.rest_id === "string" ? o.rest_id : typeof o.id_str === "string" ? o.id_str : null;
+    if (!id || !ids.has(id)) return;
+    const c = isObj(o.legacy) ? o.legacy : o;
+    const likes = num(c.favorite_count ?? c.like_count);
+    if (likes === null) return;
+    const views = isObj(o.views) ? num(o.views.count) : num(c.view_count ?? c.impression_count);
+    out.set(id, {
+      views,
+      likes,
+      reposts: num(c.retweet_count ?? c.repost_count) ?? 0,
+      replies: num(c.reply_count) ?? 0,
+      quotes: num(c.quote_count) ?? 0,
+      bookmarks: num(c.bookmark_count) ?? 0,
+    });
+  });
+  return out;
+}

@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import { env } from "./env.ts";
 import { getXAccount } from "./db/index.ts";
 import { PRODUCTS_DIR, sessionDir } from "./paths.ts";
 import { ProductConfig, type Capabilities, type Product, type XAccount } from "./types.ts";
@@ -59,6 +58,7 @@ export function validateProductFiles(product: Product): string[] {
     if (!fs.existsSync(productPath(product, rel))) problems.push(`${what} not found: ${rel}`);
   };
   must(c.brand.logo, "logo");
+  must(c.brand.reference, "brand reference screenshot");
   c.brand.fonts.files.forEach((f) => must(f, "font"));
   c.assets.clips.forEach((cl) => must(cl.path, `clip ${cl.id}`));
   c.assets.screens.forEach((s) => must(s.path, `screen ${s.id}`));
@@ -68,11 +68,7 @@ export function validateProductFiles(product: Product): string[] {
 
 export function capabilitiesFor(product: Product): Capabilities {
   return {
-    template: true,
-    remotion: true,
     clip: product.config.assets.clips.length > 0,
-    ai_image: Boolean(env.openaiKey || env.geminiKey || env.falKey),
-    ai_video: Boolean(env.falKey) && env.aiVideo,
     live: product.xAccount !== null,
   };
 }

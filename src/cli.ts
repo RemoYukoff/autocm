@@ -115,7 +115,7 @@ program.command("resume <product>").description("Resume publishing for one accou
 program
   .command("render-fixture <file>")
   .requiredOption("-p, --product <slug>", "product")
-  .description("Render media for a {brief, draft} fixture without the LLM")
+  .description("Render media for a {brief, draft} fixture (design fixtures run the designer agent)")
   .action(async (file: string, o: { product: string }) => {
     console.log(JSON.stringify(await renderFixture(file, o.product), null, 2));
   });

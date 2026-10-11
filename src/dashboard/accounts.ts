@@ -167,7 +167,8 @@ export function completeDraft(draft: ProductDraft, account: XAccount): NewProduc
   const fixed: Record<string, string> = {};
   for (const [k, def] of Object.entries(DEFAULT_COLORS)) fixed[k] = typeof colors[k] === "string" && HEX.test(colors[k] as string) ? (colors[k] as string) : def;
   if (typeof colors.muted === "string" && HEX.test(colors.muted)) fixed.muted = colors.muted;
-  c.brand = { ...brand, colors: fixed };
+  const guidelines = nonEmpty(brand.guidelines) ? brand.guidelines : ["Clean, modern product look: plenty of space, one accent color, bold sans-serif headlines."];
+  c.brand = { ...brand, colors: fixed, guidelines };
 
   // No logo on the site: the X avatar stands in, it always exists after the login.
   let logo = draft.logo;
@@ -177,7 +178,7 @@ export function completeDraft(draft: ProductDraft, account: XAccount): NewProduc
     if (ext) logo = { data, ext };
   }
   if (!logo) throw new Error("No logo on the website and no X avatar to use instead");
-  return { config: c, knowledge: draft.knowledge, logo };
+  return { config: c, knowledge: draft.knowledge, logo, reference: draft.reference };
 }
 
 /** Read the product's website and write products/<slug>/ from it, then plan posts. */

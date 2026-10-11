@@ -1,18 +1,26 @@
 # autocm
 
-Autonomous community manager for X. For every product in `products/<slug>/` it plans each post, picks the
-format on its own (text, branded image, or video), writes it, renders the media and publishes on a schedule.
+Autonomous community manager for X. For every product in `products/<slug>/` a marketing agent decides each post
+(what it is for, what kind of post, text, image or video), a copywriter writes it, a designer agent builds its image
+from scratch in the brand's style, and it publishes on a schedule.
 No approval needed; a local dashboard lets you watch upcoming posts and veto them.
 
 ## How a post is made
 
-1. **Strategist** (sonnet) reads the product knowledge, the last 30 posts and the format/pillar deficit, and
-   returns a brief: pillar, angle, format and media kind (`none`, `template`, `remotion`, `clip`, `ai_image`, `ai_video`).
+1. **Marketer** (opus, `src/agents/marketer.ts`) reads the product knowledge, the marketing playbook
+   (`src/agents/playbook.ts`: goals, plays, how X distributes posts), the last 30 posts with the engagement X reported,
+   the ideas the owner discarded, and the goal/format/pillar mix. It returns a brief: goal (`reach`, `engagement`,
+   `conversion`), play (hot take, relatable pain, story, how-to, teardown, list, question, product moment, offer...),
+   the reader insight, angle, media kind (`none`, `design`, `kinetic`, `clip`) and, for images, the visual concept
+   (what it shows, the words on it, the aspect).
 2. **Dedupe** rejects ideas already posted (trigram similarity + a haiku check) and re-plans.
-3. **Copywriter** (sonnet) writes the tweet (≤280 weighted chars), alt text and the copy for the visual.
-4. **Media**: HTML templates rendered with Playwright (statement, comparison, stat, checklist, screenshot),
-   Remotion kinetic-typography videos, or real product clips with a title card and end card.
-   AI image/video providers are used only when keys are set, with fallback to templates/Remotion.
+3. **Copywriter** (opus) writes 3-4 versions with different hooks, keeps the strongest (all are saved in
+   `copy.json`), and the words of a video.
+4. **Media**: for images the **designer** (opus, `src/agents/designer.ts`) writes an HTML/CSS/SVG page from the
+   concept, following the product's design manual (`brand.guidelines`) and a screenshot of its website. It renders
+   it with a tool that returns the screenshot plus layout problems (text clipped, off the canvas, too small,
+   overlapping, missing fonts), fixes what it sees, and picks the render to publish (up to 6 renders). Videos are
+   Remotion kinetic typography or real product clips with a title card and end card.
 5. **Hard checks**: only what X itself would refuse (≤280 weighted chars, media size/duration/codec).
    A tweet that is too long is rewritten up to 2 times. There is no LLM review.
 6. **Publisher**: guards (pause, daily caps, min gap, duplicates, X connected), then the post goes out through the product's logged-in browser profile. There is no dry-run and no X API.
@@ -29,14 +37,14 @@ pnpm autocm products validate
 pnpm autocm run --dashboard              # plan, write and publish on schedule; veto at http://127.0.0.1:4321
 ```
 
-Generated artifacts land in `out/<product>/<date>/<postId>/` (brief, draft, media, frames, preview).
+Generated artifacts land in `out/<product>/<date>/<postId>/` (brief, copy versions, media, the designer's renders, frames).
 
 ## Running on a schedule
 
 ```sh
 pnpm autocm plan -d 2    # create posting slots inside each product's windows (they are due for writing at once)
 pnpm autocm tick         # one pass: write due slots, publish due posts
-pnpm autocm run          # daemon: tick every 5 min, plan daily
+pnpm autocm run          # daemon: tick every 5 min, plan daily, read post metrics every 2 h
 ```
 
 ### Always-on local service
@@ -52,7 +60,7 @@ systemctl --user restart autocm           # manual restart; stop/start the same 
 ```
 
 Edits apply without touching the service:
-- `products/**`, `templates/**`, `src/dashboard/public/**`: read on every use, so the next post or page reload uses them.
+- `products/**`, `src/dashboard/public/**`: read on every use, so the next post or page reload uses them.
 - `src/**`, `remotion/src/**`, `.env`, `package.json`, `pnpm-lock.yaml`: `--watch` sees the change, waits until no
   tick or dashboard job is running, then exits; systemd restarts it with the new code a couple of seconds later.
   Run `pnpm install` before a dependency change lands.
@@ -68,8 +76,9 @@ Shows only what the bot is about to publish: each planned slot with an X-style p
 or video). Every day the scheduler picks how many posts to make (`cadence.posts_per_day_min` to `posts_per_day_max`)
 and when, and writes them right away, so they are visible hours before they go out. The actions are discard
 (veto), changing a post's time (click the time), **+ Generate post** (one more post at a free time in the posting
-windows, under the daily cap; written right away) and pause/resume of the shown account. Without a veto, posts publish on schedule. Once published, a post leaves the
-list; nothing tracks it afterwards.
+windows, under the daily cap; written right away) and pause/resume of the shown account. Without a veto, posts publish on schedule.
+Each post shows its goal and play (the angle on hover) and, once published, the views, likes, replies, reposts and
+bookmarks read back from X. A discarded post is remembered as a veto: the marketer stays away from that idea.
 
 ### Accounts
 
@@ -80,9 +89,9 @@ pause switch; it only stops publishing (posts are still written; a post more tha
 1. **+ Add account** opens a browser window at x.com/login. Log in to the X account autocm should post from; the
    window closes by itself and the account appears under its @handle (its slug comes from the handle).
 2. The account then asks for **the product's website**. autocm reads the homepage and up to 4 relevant pages
-   (pricing, features, about, docs) in headless Chromium, picks the logo and brand colors, asks the LLM (stage
-   `product-draft`) for everything else (voice, pillars, format mix, knowledge ending in "Facts you must not
-   claim"), fills any gap with defaults, writes `products/<slug>/` and plans posts at once. If the site can't be
+   (pricing, features, about, docs) in headless Chromium, picks the logo and brand colors, screenshots the homepage
+   (the designer's visual reference), asks the LLM (stage `product-draft`, it sees the screenshot) for everything else
+   (voice, pillars, format mix, design manual, knowledge ending in "Facts you must not claim"), fills any gap with defaults, writes `products/<slug>/` and plans posts at once. If the site can't be
    read, the account keeps asking for a website.
 
 The rest of the menu: **Reconnect** when a session breaks (it must be the same X account), **Delete** to remove an
@@ -90,7 +99,7 @@ account with its session, product folder, generated files and planned posts.
 
 ## Connecting X
 
-autocm does not use the X API. Each product posts and reads its profile through its own
+autocm does not use the X API. Each product posts, reads its profile and reads its posts' engagement through its own
 logged-in browser profile in `data/sessions/<slug>/`, driven by Playwright's full Chromium build: headed for
 the login, headless afterwards, with the same user agent in both so X sees one browser.
 
@@ -123,5 +132,6 @@ Only from the dashboard: **+ Add account** (X login), then the product's website
 
 ## Development
 
-`pnpm typecheck`, `pnpm autocm render-fixture fixtures/media/<file>.json` (fixtures are local, gitignored),
+`pnpm typecheck`, `pnpm autocm render-fixture fixtures/media/<file>.json` (fixtures are local, gitignored; a `design`
+fixture runs the designer agent),
 `pnpm tsx scripts/llm-smoke.ts`.

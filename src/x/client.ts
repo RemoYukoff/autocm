@@ -5,7 +5,8 @@ import { log } from "../core/log.ts";
 import type { MediaFile, Product, XProfile } from "../core/types.ts";
 import { XAuthError, XError, type XClient } from "../publish/x.ts";
 import { debugScreenshot, withSession } from "./browser.ts";
-import { composeAndPost, GraphqlTap, readProfile } from "./ops.ts";
+import type { TweetMetrics } from "./graphql.ts";
+import { composeAndPost, GraphqlTap, readMetrics, readProfile } from "./ops.ts";
 import { X_ORIGIN } from "./selectors.ts";
 
 /** Same error with " (screenshot: <path>)" appended. */
@@ -53,5 +54,11 @@ export class BrowserXClient implements XClient {
 
   profile(): Promise<XProfile> {
     return this.run("profile", (ctx, page, tap) => readProfile(ctx, page, tap, X_ORIGIN));
+  }
+
+  metrics(ids: string[]): Promise<Map<string, TweetMetrics>> {
+    const handle = this.handle();
+    if (!handle) return Promise.reject(new XError("no X handle known for this account", "permanent"));
+    return this.run("metrics", (ctx, page, tap) => readMetrics(ctx, page, tap, X_ORIGIN, handle, ids));
   }
 }

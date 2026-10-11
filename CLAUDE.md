@@ -2,6 +2,9 @@
 
 Autonomous X (Twitter) community manager. For each product in `products/<slug>/` it decides what to post
 (text, image or video), generates it and publishes it on a schedule, with no human approval (a local dashboard allows vetoing).
+Post making: marketer (`src/agents/marketer.ts` + `playbook.ts`) -> dedupe -> copywriter -> designer agent for images
+(`src/agents/designer.ts`, HTML/CSS it renders and checks itself via `src/media/design.ts`) or Remotion for video.
+The marketer learns from engagement read back from X (`src/publish/metrics.ts`) and from posts discarded in the dashboard.
 
 ## Rules
 - Only modify files inside this repo. Other repos under `~/repos` are read-only references
@@ -38,15 +41,16 @@ Remotion 4, ffmpeg/ffprobe (system), node-cron, pino.
   and that account's Pause/Resume. Pause is per account (flag `paused:<slug>`) and only stops publishing:
   posts are still written. There is no global pause.
 - The app runs always-on as systemd user service `autocm` (`deploy/autocm.service`, symlinked) with `run --dashboard --watch`
-  from this checkout: edits to `src/`/`remotion/src/`/`.env` restart it once idle; `products/`, `templates/`, dashboard
+  from this checkout: edits to `src/`/`remotion/src/`/`.env` restart it once idle; `products/`, dashboard
   `public/` apply live. Don't start a second `run` by hand (port 4321 is taken). Logs: `journalctl --user -u autocm -f`.
 - `pnpm typecheck`.
 - `pnpm tsx scripts/llm-smoke.ts` — check Agent SDK structured output and that user settings do not leak in.
+- `pnpm tsx scripts/tool-smoke.ts <png>` — check image input and in-process tool calls (what the designer relies on).
 
 ## Layout
 - `products/<slug>/` product.yaml, knowledge/*.md, assets/ (logo, fonts, clips, screens); local only, format in `docs/products.md`
 - `fixtures/media/*.json` sample `{brief, draft}` pairs for `render-fixture`; local only
-- `templates/image/<id>/` HTML image templates; `remotion/` video compositions
+- `remotion/` video compositions (images have no templates: the designer agent writes each one)
 - `src/dashboard` local veto UI (Hono, 127.0.0.1:4321)
 - `src/core` config, db, types; `src/agents` LLM stages; `src/media` rendering; `src/publish` X; `src/safety` guards; `src/scheduler` slots/daemon
 - `out/<product>/<date>/<postId>/` generated artifacts; `data/autocm.db` state (both gitignored)

@@ -15,10 +15,12 @@ const KNOWLEDGE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*\.md$/;
 export class ProductWriteError extends Error {}
 
 export interface NewProduct {
-  /** product.yaml without slug, brand.logo and brand.fonts.files: those are filled here. */
+  /** product.yaml without slug, brand.logo, brand.reference and brand.fonts.files: those are filled here. */
   config: Record<string, unknown>;
   knowledge: { name: string; content: string }[];
   logo: { data: Buffer; ext: string };
+  /** PNG screenshot of the website (brand.reference). */
+  reference: Buffer;
 }
 
 export function slugify(name: string): string {
@@ -97,12 +99,15 @@ export function writeProduct(slug: string, p: NewProduct): void {
     const logo = `assets/logo${p.logo.ext}`;
     fs.mkdirSync(path.join(tmp, "assets"), { recursive: true });
     fs.writeFileSync(path.join(tmp, logo), p.logo.data);
+    const reference = "assets/brand/site.png";
+    fs.mkdirSync(path.join(tmp, "assets", "brand"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, reference), p.reference);
     const brand = (p.config.brand ?? {}) as Record<string, unknown>;
     const fonts = (brand.fonts ?? {}) as Record<string, unknown>;
     const parsed = ProductConfig.safeParse({
       ...p.config,
       slug,
-      brand: { ...brand, logo, fonts: { sans: "Geist", mono: "Geist Mono", ...fonts, files: copyGeistFonts(tmp) } },
+      brand: { ...brand, logo, reference, fonts: { sans: "Geist", mono: "Geist Mono", ...fonts, files: copyGeistFonts(tmp) } },
     });
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "config"}: ${i.message}`);
