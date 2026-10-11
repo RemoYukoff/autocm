@@ -92,25 +92,8 @@ export function withSlugLock<T>(slug: string, fn: () => Promise<T>): Promise<T> 
 
 // ---------- sessions ----------
 
-function isLoopback(origin: string): boolean {
-  try {
-    return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(origin).hostname);
-  } catch {
-    return false;
-  }
-}
-
-/** Under vitest only a local fixture server may be driven, never the real X. */
-export function assertAllowedOrigin(origin: string): void {
-  if (process.env.VITEST && !isLoopback(origin)) throw new Error(`tests must never drive the real X (origin ${origin}); use a local fixture`);
-}
-
 export interface SessionOptions {
-  /** Origin the operation will load (X_ORIGIN, or a loopback fixture in tests). */
-  origin: string;
-  headless?: boolean;
-  /** Profile directory; defaults to sessionDir(slug). */
-  profileDir?: string;
+  headless: boolean;
 }
 
 function launchError(e: unknown, slug: string, dir: string): XError {
@@ -131,12 +114,11 @@ function launchError(e: unknown, slug: string, dir: string): XError {
 export function withSession<T>(slug: string, opts: SessionOptions, fn: (ctx: BrowserContext, page: Page) => Promise<T>): Promise<T> {
   return track(
     withSlugLock(slug, async () => {
-      assertAllowedOrigin(opts.origin);
-      const dir = opts.profileDir ?? sessionDir(slug);
+      const dir = sessionDir(slug);
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       let ctx: BrowserContext;
       try {
-        ctx = await chromium.launchPersistentContext(dir, launchOptions(opts.headless ?? true));
+        ctx = await chromium.launchPersistentContext(dir, launchOptions(opts.headless));
       } catch (e) {
         throw launchError(e, slug, dir);
       }

@@ -8,13 +8,6 @@ import { debugScreenshot, withSession } from "./browser.ts";
 import { composeAndPost, GraphqlTap, readProfile } from "./ops.ts";
 import { X_ORIGIN } from "./selectors.ts";
 
-export interface BrowserClientOptions {
-  /** Origin to drive; a loopback fixture server in tests. Default https://x.com. */
-  origin?: string;
-  /** Profile directory; default data/sessions/<slug>/. */
-  profileDir?: string;
-}
-
 /** Same error with " (screenshot: <path>)" appended. */
 function withShot(e: unknown, shot: string | null, what: string): XError {
   const base = e instanceof XError ? e : new XError(`X ${what}: ${(e as Error)?.message?.split("\n")[0] ?? String(e)}`, "transient", e);
@@ -25,14 +18,9 @@ function withShot(e: unknown, shot: string | null, what: string): XError {
 
 export class BrowserXClient implements XClient {
   private readonly slug: string;
-  private readonly origin: string;
 
-  constructor(
-    private readonly product: Product,
-    private readonly opts: BrowserClientOptions = {},
-  ) {
+  constructor(private readonly product: Product) {
     this.slug = product.config.slug;
-    this.origin = opts.origin ?? X_ORIGIN;
   }
 
   private handle(): string | null {
@@ -41,7 +29,7 @@ export class BrowserXClient implements XClient {
 
   /** Run one operation in its own session; record the outcome on the account, screenshot on failure. */
   private run<T>(what: string, fn: (ctx: BrowserContext, page: Page, tap: GraphqlTap) => Promise<T>): Promise<T> {
-    return withSession(this.slug, { origin: this.origin, profileDir: this.opts.profileDir, headless: true }, async (ctx, page) => {
+    return withSession(this.slug, { headless: true }, async (ctx, page) => {
       const tap = new GraphqlTap(page);
       try {
         const out = await fn(ctx, page, tap);
@@ -60,10 +48,10 @@ export class BrowserXClient implements XClient {
 
   post(text: string, media: MediaFile[], altText?: string | null): Promise<{ id: string; url: string }> {
     if (media.length > 4) return Promise.reject(new XError(`X allows at most 4 media per post (got ${media.length})`, "permanent"));
-    return this.run("post", (ctx, page, tap) => composeAndPost(ctx, page, tap, this.origin, { text, media, altText, handle: this.handle() }));
+    return this.run("post", (ctx, page, tap) => composeAndPost(ctx, page, tap, X_ORIGIN, { text, media, altText, handle: this.handle() }));
   }
 
   profile(): Promise<XProfile> {
-    return this.run("profile", (ctx, page, tap) => readProfile(ctx, page, tap, this.origin));
+    return this.run("profile", (ctx, page, tap) => readProfile(ctx, page, tap, X_ORIGIN));
   }
 }

@@ -6,14 +6,12 @@ import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import { logLlmCall } from "./core/db/index.ts";
-import { env } from "./core/env.ts";
 import { log } from "./core/log.ts";
-import { FIXTURES_DIR } from "./core/paths.ts";
 
 export type Model = "haiku" | "sonnet";
 
 export interface CallOptions {
-  /** Pipeline stage name; used for logging and FakeLLM fixtures. */
+  /** Pipeline stage name; used for logging. */
   stage: string;
   model?: Model;
   system?: string;
@@ -37,13 +35,12 @@ export class LlmError extends Error {}
 /** Call the LLM and get back a zod-validated object. One retry on failure. */
 export async function callJson<S extends z.ZodType>(schema: S, prompt: string, opts: CallOptions): Promise<z.infer<S>> {
   const jsonSchema = z.toJSONSchema(schema, { target: "draft-7", io: "input" });
-  const adapter = env.llm === "fake" ? fakeAdapter : sdkAdapter;
   const model = opts.model ?? "sonnet";
   let lastErr: unknown;
   for (let attempt = 1; attempt <= 2; attempt++) {
     const t0 = Date.now();
     try {
-      const { output, costUsd } = await adapter(jsonSchema, prompt, opts);
+      const { output, costUsd } = await sdkAdapter(jsonSchema, prompt, opts);
       const parsed = schema.safeParse(output);
       if (!parsed.success) throw new LlmError(`Schema mismatch: ${parsed.error.message}`);
       logLlmCall({ post_id: opts.postId, stage: opts.stage, model, ms: Date.now() - t0, ok: true, cost_usd: costUsd });
@@ -101,22 +98,4 @@ const sdkAdapter: Adapter = async (jsonSchema, prompt, opts) => {
   } finally {
     clearTimeout(timer);
   }
-};
-
-// ---------- fake adapter (tests, offline dev) ----------
-
-type FakeHandler = (prompt: string, opts: CallOptions) => unknown;
-const fakeHandlers = new Map<string, FakeHandler>();
-
-/** Register a canned response for a stage when AUTOCM_LLM=fake. */
-export function setFakeResponse(stage: string, handler: FakeHandler | unknown): void {
-  fakeHandlers.set(stage, typeof handler === "function" ? (handler as FakeHandler) : () => handler);
-}
-
-const fakeAdapter: Adapter = async (_schema, prompt, opts) => {
-  const handler = fakeHandlers.get(opts.stage);
-  if (handler) return { output: handler(prompt, opts) };
-  const file = path.join(FIXTURES_DIR, "llm", `${opts.stage}.json`);
-  if (fs.existsSync(file)) return { output: JSON.parse(fs.readFileSync(file, "utf8")) };
-  throw new LlmError(`FakeLLM: no handler or fixture for stage "${opts.stage}" (${file})`);
 };

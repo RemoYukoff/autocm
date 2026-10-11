@@ -119,9 +119,9 @@ the login, headless afterwards, with the same user agent in both so X sees one b
 
 ## Adding a product
 
-Only from the dashboard: **+ Add account** (X login), then the product's website (see "Accounts"). `products/README.md` documents the folder autocm writes.
+Only from the dashboard: **+ Add account** (X login), then the product's website (see "Accounts"). `docs/products.md` documents the folder autocm writes. `products/` is local only (gitignored).
 
 ## Development
 
-`pnpm typecheck`, `pnpm test` (vitest, uses `AUTOCM_LLM=fake`), `pnpm autocm render-fixture fixtures/media/<file>.json`,
+`pnpm typecheck`, `pnpm autocm render-fixture fixtures/media/<file>.json` (fixtures are local, gitignored),
 `pnpm tsx scripts/llm-smoke.ts`.

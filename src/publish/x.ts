@@ -1,5 +1,4 @@
 // X client contract. The real client drives the product's logged-in browser profile (src/x/); there is no X API.
-// Tests must inject a fake with setXClientFactory: the real one refuses to run under vitest.
 import type { MediaFile, Product, XProfile } from "../core/types.ts";
 
 export type XErrorKind = "auth" | "rate_limit" | "transient" | "permanent";
@@ -45,7 +44,6 @@ export type XClientFactory = (product: Product) => XClient;
 let defaultFactory: XClientFactory = () => {
   throw new XError("browser X client not installed", "permanent");
 };
-let factory: XClientFactory | null = null;
 
 /** src/x/ registers the browser client here at import time. */
 export function setDefaultXClientFactory(f: XClientFactory): void {
@@ -53,12 +51,5 @@ export function setDefaultXClientFactory(f: XClientFactory): void {
 }
 
 export function getXClient(product: Product): XClient {
-  // Tests must never reach the real X.
-  if (process.env.VITEST && !factory) throw new Error("tests must mock the X client (setXClientFactory)");
-  return (factory ?? defaultFactory)(product);
-}
-
-/** Tests: inject a fake client. Pass null to restore the real one. */
-export function setXClientFactory(f: XClientFactory | null): void {
-  factory = f;
+  return defaultFactory(product);
 }

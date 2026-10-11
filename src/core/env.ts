@@ -5,7 +5,6 @@ import { ROOT } from "./paths.ts";
 dotenv.config({ path: path.join(ROOT, ".env"), quiet: true });
 
 export const env = {
-  llm: (process.env.AUTOCM_LLM === "fake" ? "fake" : "claude") as "claude" | "fake",
   globalDailyCap: Number(process.env.AUTOCM_GLOBAL_DAILY_CAP ?? 6),
   openaiKey: process.env.OPENAI_API_KEY || undefined,
   geminiKey: process.env.GEMINI_API_KEY || undefined,

@@ -2,7 +2,6 @@
 import { Command } from "commander";
 import { capabilitiesFor, listProductSlugs, loadProduct, validateProductFiles } from "./core/config.ts";
 import { getDb } from "./core/db/index.ts";
-import { env } from "./core/env.ts";
 import { log } from "./core/log.ts";
 import { renderFixture } from "./media/index.ts";
 import { xWhoami } from "./publish/index.ts";
@@ -132,8 +131,7 @@ x.command("connect <product>")
 x.command("whoami <product>").description("Profile of the product's logged-in X session").action(async (slug: string) => {
   console.log(await xWhoami(loadProduct(slug)));
 });
-program.command("status").description("LLM mode and each account's pause state").action(() => {
-  console.log(`llm=${env.llm}`);
+program.command("status").description("Each account's pause state").action(() => {
   for (const slug of listProductSlugs()) console.log(`${slug} paused=${isPaused(slug) ? "yes" : "no"}`);
 });
 
